@@ -1,0 +1,2586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Mostly Functional</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Georgia, "Times New Roman", serif; }
+  textarea { font-family: inherit; }
+  select { font-family: inherit; }
+  input { font-family: inherit; }
+  @media(max-width:720px) {
+    .main-grid { grid-template-columns: 1fr !important; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+
+// ── How-to cues per exercise ─────────────────────────────────────────────────
+const EXERCISE_TIPS = {
+  "Back Squat": "Bar on traps, chest up, brace core. Push knees out as you descend to parallel — drive through heels to stand.",
+  "RDL": "Soft bend in knees, hinge at hips, bar stays close to legs. Feel the hamstring stretch, squeeze glutes to drive hips forward at the top.",
+  "Leg Press": "Feet hip-width, toes slightly out. Lower until knees reach 90°, press through heels. Don't lock knees at the top.",
+  "Bench Press": "Pinch shoulder blades together, slight arch in lower back. Bar to mid-chest, elbows at ~45°, press up and slightly back.",
+  "Chest Supported Row": "Chest flat on pad, let arms hang fully. Drive elbows back and squeeze shoulder blades together at the top. Control the descent.",
+  "Incline Press": "Set bench to 30–45°. Same cues as flat bench — blades back, bar to upper chest, controlled press.",
+  "Rack Pull": "Set bar just below or at knee height. Brace hard, push floor away, keep bar close to body. Lock out glutes and hips at top.",
+  "Hip Thrust": "Upper back on bench, bar over hip crease with pad. Drive hips up until body is flat, squeeze glutes hard at the top. Don't hyperextend.",
+  "Lat Pulldown": "Lean back slightly, pull bar to upper chest leading with elbows. Stretch fully at the top. Avoid using momentum.",
+  "Assisted Pull Up": "Full hang to start, drive elbows down and back. Chin over bar. Use just enough assist to complete reps with good form.",
+  "Bulgarian Split Squat": "Rear foot elevated, front foot far enough forward so knee stays behind toes. Lower straight down, drive through front heel to stand.",
+  "Sumo Deadlift": "Wide stance, toes out, grip inside legs. Push knees out, keep chest up. Drive through floor — hips and bar rise together.",
+  "Single-leg Leg Press": "One foot centered on platform, same depth as regular leg press. Keep hips even and control the eccentric.",
+  "Single Arm Dumbbell Row": "Brace on bench, back flat. Pull elbow straight back — think 'elbow to hip.' Full stretch at bottom, don't rotate at the top.",
+  "Chest Fly": "Slight bend in elbows throughout. Open wide until chest stretches, bring dumbbells together squeezing pecs. Keep movement arc wide.",
+  "Lateral Raise": "Soft bend in elbows, slight forward lean. Lead with your elbows, raise to shoulder height. Slow on the way down.",
+  "Front Raise": "Alternate or together, palms down. Raise to shoulder height, keep core tight. Don't use momentum — control both directions.",
+  "DB Curtsy Lunge": "Step one foot behind and across the other. Lower back knee toward floor, keep front knee tracking over toes. Drive through front heel.",
+  "Hack Squat Machine": "Feet hip-width on platform, toes slightly out. Lower until thighs are parallel, press through heels. Keep lower back against pad.",
+  "Pallof Press": "Stand sideways to cable anchor, feet shoulder-width. Press straight out from chest, hold briefly, return slowly. Core stays tight — resist rotation.",
+};
+
+// ── Plan definitions ────────────────────────────────────────────────────────
+// progression type: "big_lower" +10/wk | "compound" +5/wk | "upper" +5/wk | "machine" +5/wk
+const PLANS = {
+  A: {
+    name: "Plan A",
+    days: [
+      {
+        id: "A1", label: "Day 1 — Legs",
+        exercises: [
+          { name: "Back Squat",        sets: 3, reps: [8,10],  prog: "big_lower", equipment: "barbell" },
+          { name: "RDL",               sets: 3, reps: [10,12], prog: "compound",  equipment: "barbell" },
+          { name: "Leg Press",         sets: 3, reps: [10,12], prog: "machine",   equipment: "sled"    },
+        ]
+      },
+      {
+        id: "A2", label: "Day 2 — Upper",
+        exercises: [
+          { name: "Bench Press",         sets: 3, reps: [8,10],  prog: "upper",   equipment: "barbell"  },
+          { name: "Chest Supported Row", sets: 3, reps: [10,12], prog: "upper",   equipment: "machine"  },
+          { name: "Incline Press",       sets: 3, reps: [10,12], prog: "upper",   equipment: "dumbbell" },
+        ]
+      },
+      {
+        id: "A3", label: "Day 3 — Pull / Hinge",
+        exercises: [
+          { name: "Rack Pull",     sets: 3, reps: [6,8],   prog: "big_lower", equipment: "barbell" },
+          { name: "Hip Thrust",    sets: 3, reps: [10,12], prog: "compound",  equipment: "barbell" },
+          { name: "Lat Pulldown",  sets: 3, reps: [10,12], prog: "machine",   equipment: "machine"  },
+        ]
+      },
+    ]
+  },
+  B: {
+    name: "Plan B",
+    days: [
+      {
+        id: "B1", label: "Day 1 — Legs",
+        exercises: [
+          { name: "Bulgarian Split Squat", sets: 3, reps: [6,8],   prog: "big_lower", perSide: true, equipment: "dumbbell" },
+          { name: "Sumo Deadlift",         sets: 3, reps: [6,8],   prog: "big_lower", equipment: "barbell" },
+          { name: "Single-leg Leg Press",  sets: 3, reps: [10,12], prog: "machine",   perSide: true, equipment: "sled" },
+        ]
+      },
+      {
+        id: "B2", label: "Day 2 — Upper",
+        exercises: [
+          { name: "Single Arm Dumbbell Row", sets: 3, reps: [8,10],  prog: "upper",   perSide: true, equipment: "dumbbell" },
+          { name: "Chest Fly",               sets: 3, reps: [10,12], prog: "machine",  equipment: "machine"  },
+          { name: "Lateral Raise",           sets: 3, reps: [8,10],  prog: "machine", superset: "Front Raise", equipment: "dumbbell" },
+        ]
+      },
+      {
+        id: "B3", label: "Day 3 — Glutes / Core",
+        exercises: [
+          { name: "DB Curtsy Lunge",  sets: 3, reps: [10,12], prog: "compound", perSide: true, equipment: "dumbbell" },
+          { name: "Hack Squat Machine", sets: 3, reps: [8,10], prog: "machine",  equipment: "machine" },
+          { name: "Pallof Press",     sets: 3, reps: [10,12], prog: "machine",  perSide: true, equipment: "cable" },
+        ]
+      },
+    ]
+  }
+};
+
+const WEEK_CONFIG = [
+  { week: 1, repMod: 0,  weightMod: 0,    rpe: "RPE 7–8", label: "Foundation" },
+  { week: 2, repMod: -2, weightMod: 1,    rpe: "RPE 8",   label: "Build" },
+  { week: 3, repMod: -2, weightMod: 2,    rpe: "RPE 8–9", label: "Peak" },
+  { week: 4, repMod: +4, weightMod: -0.1, rpe: "Deload",  label: "Deload", deload: true },
+];
+
+const PROG_INCREMENT = { big_lower: 10, compound: 5, upper: 5, machine: 5 };
+
+// Swappable exercise alternatives — key is the default exercise name, value is array of options
+const EXERCISE_SWAPS = {
+  "Lat Pulldown": ["Lat Pulldown", "Assisted Pull Up"],
+};
+
+// Exercises where weight is entered as total but you load per side
+// Exercises where you load/think in per-side weight (barbell each side, or dumbbell each hand)
+const PER_SIDE_LOAD = new Set([
+  "Back Squat", "Bench Press", "Rack Pull",
+  "Sumo Deadlift", "Leg Press", "Single-leg Leg Press",
+  "Incline Press", "Bulgarian Split Squat"
+]);
+
+// Exercises that can be done at bodyweight or bar weight
+const HAS_BW_OPTION = new Set([
+  "Back Squat", "Bench Press", "Rack Pull", "RDL",
+  "Sumo Deadlift", "Hip Thrust", "Incline Press",
+  "Bulgarian Split Squat", "Leg Press"
+]);
+
+function round5(n) { return Math.round(n / 5) * 5; }
+
+// weekIncrements[i] = how many increments above week-0 baseline week i represents.
+// Week pattern (per 4-week cycle): 0 inc, +1, +2, deload(~+1.8 effectively just 0.9×peak)
+// We compute weight purely as: base + (stepsAhead × inc), where stepsAhead counts
+// how many non-deload progression steps have happened since startWeek.
+function stepsFromWeek(weekIndex) {
+  // Returns the number of forward increment steps this week represents vs week 0
+  const cycle = Math.floor(weekIndex / 4);
+  const cycleWeek = weekIndex % 4;
+  // Each full cycle = 2 steps (week1=+1, week2=+2, week3=deload at peak, week4=restart)
+  // Within a cycle: w0=0 steps, w1=1 step, w2=2 steps, w3=2 steps (deload of peak)
+  const withinCycleSteps = [0, 1, 2, 2][cycleWeek];
+  return cycle * 2 + withinCycleSteps;
+}
+
+function calcWeekWeight(baseWeight, weekIndex, progType, startWeek = 0) {
+  const inc = PROG_INCREMENT[progType];
+  const stepsNow   = stepsFromWeek(weekIndex);
+  const stepsStart = stepsFromWeek(startWeek);
+  const stepsAhead = Math.max(0, stepsNow - stepsStart);
+  const rawWeight  = baseWeight + stepsAhead * inc;
+  // Apply deload if this is a deload week (cycleWeek === 3)
+  if (weekIndex % 4 === 3) return round5(rawWeight * 0.9);
+  return rawWeight;
+}
+
+function getISOWeek(dateStr) {
+  const d = new Date(dateStr);
+  d.setHours(0,0,0,0);
+  d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+  const week1 = new Date(d.getFullYear(), 0, 4);
+  return 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+}
+function getISOYear(dateStr) {
+  const d = new Date(dateStr);
+  d.setHours(0,0,0,0);
+  d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+  return d.getFullYear();
+}
+
+function getWarmupSets(workWeight, minReps) {
+  // workWeight here is per-side for PER_SIDE_LOAD exercises
+  // warmup percentages are of that per-side weight
+  return [
+    { pct: 0.50, reps: minReps,     weight: round5(workWeight * 0.50) },
+    { pct: 0.75, reps: Math.max(1, minReps - 2), weight: round5(workWeight * 0.75) },
+    { pct: 0.90, reps: Math.max(1, minReps - 4), weight: round5(workWeight * 0.90) },
+  ];
+}
+
+function getRepsForWeek(baseReps, weekIndex) {
+  const cycleWeek = weekIndex % 4;
+  const [lo, hi] = baseReps;
+  const cfg = WEEK_CONFIG[cycleWeek];
+  const mod = cfg.repMod;
+  if (cfg.deload) return [lo + 4, hi + 4];
+  return [Math.max(1, lo + mod), Math.max(1, hi + mod)];
+}
+
+// ── Storage helpers ─────────────────────────────────────────────────────────
+const STORAGE_KEY = "gym_tracker_v3";
+
+
+function migrateUser(u) {
+  if (!u) return null;
+  if (!u.workoutLog) u.workoutLog = [];
+  if (u.streak === undefined) u.streak = 0;
+  if (!u.lastWorkoutDate) u.lastWorkoutDate = null;
+  if (!u.baseWeights) u.baseWeights = {};
+  if (!u.currentPlan) u.currentPlan = "A";
+  if (u.currentWeek === undefined) u.currentWeek = 0;
+  if (u.weightsSetWeek === undefined) u.weightsSetWeek = u.currentWeek;
+  if (!u.exerciseSwaps) u.exerciseSwaps = {};
+  return u;
+}
+
+function migrateState(raw) {
+  if (!raw) return null;
+  // Handle old multi-user shape: { users: { me: {...}, sister: {...} }, activeUser, tab }
+  if (raw.users && raw.users.me) {
+    const u = migrateUser({ ...raw.users.me });
+    return { user: u, tab: "workout" };
+  }
+  // Handle new single-user shape: { user: {...}, tab }
+  if (raw.user) {
+    raw.user = migrateUser(raw.user);
+    return raw;
+  }
+  return null; // corrupt
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return migrateState(parsed);
+  } catch { return null; }
+}
+function saveState(s) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch {}
+}
+
+
+
+// ── Default state ────────────────────────────────────────────────────────────
+function defaultUser(name) {
+  const baseWeights = {};
+  ["A","B"].forEach(planKey => {
+    PLANS[planKey].days.forEach(day => {
+      day.exercises.forEach(ex => {
+        baseWeights[`${planKey}_${ex.name}`] = "";
+        if (ex.superset) baseWeights[`${planKey}_${ex.superset}`] = "";
+      });
+    });
+  });
+  return {
+    name,
+    currentPlan: "A",
+    currentWeek: 0,
+    baseWeights,
+    workoutLog: [],
+    streak: 0,
+    lastWorkoutDate: null,
+    exerciseSwaps: {}, // { "swapKey": "Alternative Exercise Name" }
+  };
+}
+
+const INITIAL_STATE = {
+  user: defaultUser("Kirstyn"),
+  tab: "workout", // workout | setup
+};
+
+// ── Icons ────────────────────────────────────────────────────────────────────
+const Icon = {
+  Info: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:15,height:15}}>
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+    </svg>
+  ),
+  Fire: () => <span style={{fontSize:14}}>🔥</span>,
+  Check: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:15,height:15}}>
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+  ),
+  Dumbbell: () => <span style={{fontSize:16}}>🌿</span>,
+  Bolt: () => <span style={{fontSize:16}}>✨</span>,
+  People: () => <span style={{fontSize:16}}>🌸</span>,
+  Chart: () => <span style={{fontSize:16}}>📈</span>,
+  Settings: () => <span style={{fontSize:16}}>🌱</span>,
+};
+
+// ── Main App ─────────────────────────────────────────────────────────────────
+function GymTracker({ onGymNav }) {
+  const [state, setState] = useState(() => loadState() || INITIAL_STATE);
+  const [tooltip, setTooltip] = useState(null); // exercise name
+  const [fuckItMode, setFuckItMode] = useState(false);
+  const [selectedDay, setSelectedDay] = useState(null);
+  const [logEntries, setLogEntries] = useState({}); // {exName: {set1:{weight,reps}, ...}}
+  const [completedSets, setCompletedSets] = useState({}); // {exName_setIdx: true}
+  const [skippedSets, setSkippedSets] = useState({}); // {exName_setIdx: true}
+  const [workoutDone, setWorkoutDone] = useState(false);
+  const [weightOverrides, setWeightOverrides] = useState({});
+  const [repsDone, setRepsDoneState] = useState({}); // { "ExName_setIdx": repCount }
+
+  const user = state.user;
+
+  const plan = PLANS[user.currentPlan];
+  const weekIndex = user.currentWeek; // 0–7
+  const cycleWeek = weekIndex % 4;
+  const weekCfg = WEEK_CONFIG[cycleWeek];
+
+  useEffect(() => { saveState(state); }, [state]);
+
+  function updateUser(patch) {
+    setState(s => ({ ...s, user: { ...s.user, ...patch } }));
+  }
+
+  function setTab(tab) { setState(s => ({ ...s, tab })); }
+
+  // ── weight calculation ───────────────────────────────────────────────────
+  // Progression ignores Fuck It days — we look back at the last real session
+  // for this specific day to determine the correct week offset for weight calc.
+  function getEffectiveWeekIndex(dayId) {
+    if (!dayId) return weekIndex;
+    // Check if there's already a real session for this day in the current week
+    const realThisWeek = (user.workoutLog || []).some(
+      l => l.dayId === dayId && !l.fuckIt && l.weekIndex === weekIndex
+    );
+    if (realThisWeek) return weekIndex;
+    // Otherwise find the last real session for this day
+    const realLogs = (user.workoutLog || []).filter(l => l.dayId === dayId && !l.fuckIt);
+    if (realLogs.length === 0) return weekIndex;
+    const lastRealWeek = realLogs[realLogs.length - 1].weekIndex;
+    // Use current week if it's ahead, otherwise resume from last real week
+    return Math.max(lastRealWeek, weekIndex);
+  }
+
+  function getWorkingWeight(exName, progType, planKey, dayId) {
+    const bwKey = `${planKey}_${exName}`;
+    const base = parseFloat(user.baseWeights[bwKey]);
+    if (!base) return null;
+    const override = weightOverrides[exName];
+    if (override !== undefined) return parseFloat(override) || null;
+    const effectiveWeek = getEffectiveWeekIndex(dayId);
+    // startWeek = the program week when base weights were entered
+    const startWeek = user.weightsSetWeek !== undefined ? user.weightsSetWeek : effectiveWeek;
+
+    // Check if this exercise was held in the PREVIOUS session for this day
+    const realLogs = (user.workoutLog || []).filter(l => l.dayId === dayId && !l.fuckIt);
+    if (realLogs.length > 0) {
+      const lastLog = realLogs[realLogs.length - 1];
+      if (lastLog.heldExercises && lastLog.heldExercises[exName]) {
+        return calcWeekWeight(base, lastLog.weekIndex, progType, startWeek);
+      }
+    }
+
+    return calcWeekWeight(base, effectiveWeek, progType, startWeek);
+  }
+
+  function getFuckItWeight(exName, progType, planKey, dayId) {
+    const w = getWorkingWeight(exName, progType, planKey, dayId);
+    return w ? round5(w * 0.70) : null;
+  }
+
+  // Returns the weight from the last REAL logged session for this day/exercise
+  // Only shows a real comparison — no hypothetical "last week" if never logged
+  function getPrevWeight(exName, progType, planKey, dayId) {
+    const bwKey = `${planKey}_${exName}`;
+    const base = parseFloat(user.baseWeights[bwKey]);
+    if (!base) return null;
+    const startWeek = user.weightsSetWeek !== undefined ? user.weightsSetWeek : user.currentWeek;
+    const realLogs = (user.workoutLog || []).filter(l => l.dayId === dayId && !l.fuckIt);
+    if (realLogs.length === 0) return null; // no history → no comparison
+    const lastLog = realLogs[realLogs.length - 1];
+    return calcWeekWeight(base, lastLog.weekIndex, progType, startWeek);
+  }
+
+  // ── complete workout ─────────────────────────────────────────────────────
+  function finishWorkout() {
+    const today = new Date().toISOString().slice(0, 10);
+    const day = plan.days.find(d => d.id === selectedDay);
+
+    // For each exercise, check if 2 of 3 sets hit the top rep — if not, mark as held
+    const heldExercises = {}; // { exName: true } — these won't progress next week
+    if (!fuckItMode && day) {
+      day.exercises.forEach(ex => {
+        const swapKey = `${user.currentPlan}_${selectedDay}_${ex.name}`;
+        const activeName = (user.exerciseSwaps || {})[swapKey] || ex.name;
+        const topRep = getRepsForWeek([ex.reps[0], ex.reps[1]], weekIndex)[1];
+        const anySkipped = [0,1,2].some(si => skippedSets[`${ex.name}_${si}`]);
+        if (anySkipped) { heldExercises[activeName] = true; }
+        else {
+          const setsHit = [0,1,2].filter(si => (repsDone[`${ex.name}_${si}`] || 0) >= topRep).length;
+          if (setsHit < 2) heldExercises[activeName] = true;
+        }
+        if (ex.superset) {
+          const ssAnySkipped = [0,1,2].some(si => skippedSets[`${ex.superset}_${si}`]);
+          if (ssAnySkipped) { heldExercises[ex.superset] = true; }
+          else {
+            const ssHit = [0,1,2].filter(si => (repsDone[`${ex.superset}_${si}`] || 0) >= topRep).length;
+            if (ssHit < 2) heldExercises[ex.superset] = true;
+          }
+        }
+      });
+    }
+
+    const entry = {
+      date: today,
+      plan: user.currentPlan,
+      dayId: selectedDay,
+      weekIndex,
+      fuckIt: fuckItMode,
+      entries: logEntries,
+      repsDone: { ...repsDone },
+      heldExercises,
+    };
+
+    // Fuck It days COUNT toward completing the week (fill a slot),
+    // but are flagged so progression skips them.
+    // Week advances once 3 distinct day slots are filled (real OR fuck it).
+    let newWeekIndex = weekIndex;
+    const thisWeekLogs = [...(user.workoutLog || []), entry].filter(l => l.weekIndex === weekIndex);
+    const daysLogged = new Set(thisWeekLogs.map(l => l.dayId)).size;
+    if (daysLogged >= 3) {
+      newWeekIndex = (weekIndex + 1) % 8;
+    }
+
+    // Weekly streak — count consecutive weeks with at least one workout
+    const todayWeek = getISOWeek(today);
+    const todayYear = getISOYear(today);
+    const lastDate = user.lastWorkoutDate;
+    let newStreak = user.streak;
+    if (!lastDate) {
+      newStreak = 1;
+    } else {
+      const lastWeek = getISOWeek(lastDate);
+      const lastYear = getISOYear(lastDate);
+      const sameWeek = (lastWeek === todayWeek && lastYear === todayYear);
+      const prevWeek = (todayWeek === 1)
+        ? (lastWeek === 52 || lastWeek === 53) && lastYear === todayYear - 1
+        : lastWeek === todayWeek - 1 && lastYear === todayYear;
+      if (sameWeek) newStreak = user.streak; // already counted this week
+      else if (prevWeek) newStreak = user.streak + 1; // consecutive week
+      else newStreak = 1; // broke the streak
+    }
+
+    const updatedUser = {
+      ...user,
+      workoutLog: [...(user.workoutLog || []), entry],
+      currentWeek: newWeekIndex,
+      streak: newStreak,
+      lastWorkoutDate: today,
+    };
+    updateUser(updatedUser);
+
+
+    setWorkoutDone(true);
+  }
+
+  // ── toggle set complete ──────────────────────────────────────────────────
+  function toggleSet(key) {
+    setCompletedSets(s => {
+      const next = { ...s, [key]: !s[key] };
+      // if unchecking, clear the rep count too
+      if (!next[key]) setRepsDoneState(r => { const n = {...r}; delete n[key]; return n; });
+      return next;
+    });
+  }
+
+  function setReps(key, val) {
+    setRepsDoneState(r => ({ ...r, [key]: val }));
+  }
+
+  function skipSet(key) {
+    // Mark as skipped (counts as "done" for finish purposes, flagged for progression)
+    setSkippedSets(s => ({ ...s, [key]: !s[key] }));
+    // Clear any rep count and uncheck if re-skipping
+    if (!skippedSets[key]) {
+      setCompletedSets(s => ({ ...s, [key]: false }));
+      setRepsDoneState(r => { const n = {...r}; delete n[key]; return n; });
+    }
+  }
+
+  const allSetsComplete = selectedDay && (() => {
+    const day = plan.days.find(d => d.id === selectedDay);
+    if (!day) return false;
+    for (const ex of day.exercises) {
+      for (let i = 0; i < 3; i++) {
+        const key = `${ex.name}_${i}`;
+        const skipped = skippedSets[key];
+        if (!completedSets[key] && !skipped) return false;
+        if (!fuckItMode && !skipped && !repsDone[key]) return false;
+      }
+      if (ex.superset) {
+        for (let i = 0; i < 3; i++) {
+          const key = `${ex.superset}_${i}`;
+          const skipped = skippedSets[key];
+          if (!completedSets[key] && !skipped) return false;
+          if (!fuckItMode && !skipped && !repsDone[key]) return false;
+        }
+      }
+    }
+    return true;
+  })();
+
+  // ── RENDER ───────────────────────────────────────────────────────────────
+  return (
+    <div style={styles.root}>
+      {/* Grain overlay */}
+      <div style={styles.grain} />
+
+      {/* Header */}
+      <header style={styles.header}>
+        <div style={styles.headerLeft}>
+          <span style={styles.logo}><span style={styles.logoAccent}>🌿</span> liftsis</span>
+          <span style={styles.streakBadge} title="Increments each new week you finish at least one workout">
+            🔥 {user.streak} {user.streak === 1 ? "week" : "weeks"}
+          </span>
+        </div>
+
+      </header>
+
+      {/* Week banner */}
+      <div style={styles.weekBanner}>
+        <div style={styles.weekInfo}>
+          <span style={styles.weekLabel}>
+            
+            {user.currentPlan} · week {(cycleWeek + 1)} of 4
+          </span>
+          <span style={styles.weekSub}>{weekCfg.label} — {weekCfg.rpe}</span>
+        </div>
+        <div style={styles.weekDots}>
+          {Array.from({length: 8}).map((_, i) => (
+            <div key={i} style={{...styles.weekDot, ...(i === weekIndex ? styles.weekDotActive : {}), ...(i < weekIndex ? styles.weekDotDone : {})}} />
+          ))}
+        </div>
+      </div>
+
+      {/* Nav tabs */}
+      <nav style={styles.nav}>
+        {[
+          { key: "workout", icon: <Icon.Dumbbell />, label: "Today" },
+          { key: "stats",   icon: <Icon.Chart />,    label: "Stats" },
+          { key: "setup",   icon: <Icon.Settings />, label: "Setup" },
+        ].map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            style={{...styles.navBtn, ...(state.tab === t.key ? styles.navBtnActive : {})}}>
+            {t.icon} {t.label}
+          </button>
+        ))}
+      </nav>
+
+      {/* ── TAB: WORKOUT ── */}
+      {state.tab === "workout" && (
+        <div style={styles.content}>
+          {workoutDone ? (
+            <div style={styles.doneBanner}>
+              
+              <div style={styles.doneTitle}>you showed up! 🌿</div>
+              <div style={styles.doneSub}>That's all it takes. See you next time.</div>
+              <button style={styles.primaryBtn} onClick={() => { setWorkoutDone(false); setSelectedDay(null); setCompletedSets({}); setSkippedSets({}); setLogEntries({}); setWeightOverrides({}); setRepsDoneState({}); setFuckItMode(false); }}>
+                Back
+              </button>
+            </div>
+          ) : !selectedDay ? (
+            <>
+              <div style={styles.sectionTitle}>what's today?</div>
+              <div style={styles.dayGrid}>
+                {plan.days.map(day => {
+                  const doneThisWeek = (user.workoutLog || []).some(
+                    l => l.dayId === day.id && l.weekIndex === weekIndex && !l.fuckIt
+                  );
+                  return (
+                    <button key={day.id}
+                      style={{...styles.dayCard, ...(doneThisWeek ? styles.dayCardDone : {})}}
+                      onClick={() => { if (!doneThisWeek) { setSelectedDay(day.id); setFuckItMode(false); } }}>
+                      <span style={styles.dayCardLabel}>{day.label}{doneThisWeek ? " ✓" : ""}</span>
+                      <span style={styles.dayCardSub}>{doneThisWeek ? "done this week" : day.exercises.map(e => e.name).join(" · ")}</span>
+                    </button>
+                  );
+                })}
+                <div style={{marginTop:4}}>
+                  <div style={styles.fuckItDivider}>⚡ Fuck It Day — pick which day you're subbing</div>
+                  {plan.days.map(day => {
+                    const fiDone = (user.workoutLog || []).some(l => l.dayId === day.id && l.weekIndex === weekIndex);
+                    return (
+                    <button key={"fi_"+day.id} style={{...styles.dayCard, ...styles.fuckItCard, marginBottom:6, ...(fiDone ? {opacity:0.4, cursor:"default"} : {})}} onClick={() => {
+                      if (fiDone) return;
+                      setSelectedDay(day.id);
+                      setFuckItMode(true);
+                    }}>
+                      <Icon.Bolt />
+                      <div>
+                        <span style={styles.dayCardLabel}>{day.label}{fiDone ? " ✓" : ""}</span>
+                        <span style={{...styles.dayCardSub, display:"block"}}>{fiDone ? "done this week" : "70% deload · no warmup · counts for the week"}</span>
+                      </div>
+                    </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          ) : (
+            <WorkoutView
+              day={plan.days.find(d => d.id === selectedDay)}
+              dayId={selectedDay}
+              planKey={user.currentPlan}
+              weekIndex={weekIndex}
+              fuckIt={fuckItMode}
+              getWorkingWeight={getWorkingWeight}
+              getFuckItWeight={getFuckItWeight}
+              getPrevWeight={getPrevWeight}
+              weekCfg={weekCfg}
+              completedSets={completedSets}
+              toggleSet={toggleSet}
+              allSetsComplete={allSetsComplete}
+              finishWorkout={finishWorkout}
+              onBack={() => { setSelectedDay(null); setFuckItMode(false); }}
+              tooltip={tooltip}
+              setTooltip={setTooltip}
+              weightOverrides={weightOverrides}
+              setWeightOverrides={setWeightOverrides}
+              repsDone={repsDone}
+              setReps={setReps}
+              skippedSets={skippedSets}
+              skipSet={skipSet}
+              exerciseSwaps={user.exerciseSwaps || {}}
+              onSwapExercise={(swapKey, choice) => updateUser({ exerciseSwaps: { ...(user.exerciseSwaps || {}), [swapKey]: choice } })}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ── TAB: SETUP ── */}
+      {state.tab === "setup" && (
+        <SetupView user={user} updateUser={updateUser} />
+      )}
+
+      {state.tab === "stats" && (
+        <StatsView user={user} />
+      )}
+
+    </div>
+  );
+}
+
+// ── helper: weight display ────────────────────────────────────────────────
+// weight = auto-calculated per-side (or total for non-perside exercises)
+// prevWeight = last week's weight for same exercise, to show the increase
+function WeightDisplay({ weight, prevWeight, exName, override, onOverride, onReset, bwMode, onBwMode }) {
+  const isPerSide = PER_SIDE_LOAD.has(exName);
+  const hasBw = HAS_BW_OPTION.has(exName);
+  const [showOverride, setShowOverride] = useState(false);
+
+  const activeWeight = override !== undefined ? parseFloat(override) || 0 : weight || 0;
+  const totalWeight  = isPerSide ? activeWeight * 2 : activeWeight;
+  const inputDisabled = bwMode === "bw" || bwMode === "bar";
+
+  // Weight increase label
+  const increase = (prevWeight && weight && !override)
+    ? weight - prevWeight : null;
+  const increaseLabel = increase > 0 ? `+${increase} lbs from last week`
+                      : increase < 0 ? `${increase} lbs from last week`
+                      : increase === 0 ? "same as last week" : null;
+
+  return (
+    <div style={styles.weightBlock}>
+      {/* bw/bar toggle */}
+      {hasBw && (
+        <div style={styles.modeToggle}>
+          <button style={{...styles.modeBtn, ...((!bwMode) ? styles.modeBtnActive : {})}}
+            onClick={() => onBwMode(null)}>weight</button>
+          <button style={{...styles.modeBtn, ...(bwMode==="bar" ? styles.modeBtnActive : {})}}
+            onClick={() => onBwMode(bwMode === "bar" ? null : "bar")}>bar only</button>
+          <button style={{...styles.modeBtn, ...(bwMode==="bw"  ? styles.modeBtnActive : {})}}
+            onClick={() => onBwMode(bwMode === "bw"  ? null : "bw")}>bodyweight</button>
+        </div>
+      )}
+
+      {/* Main weight display */}
+      {!inputDisabled && (
+        <div style={styles.weightPrimary}>
+          {activeWeight > 0 ? (
+            <>
+              <span style={styles.weightBig}>
+                {isPerSide ? activeWeight : activeWeight}
+                <span style={styles.weightUnit}> lbs {isPerSide ? "each side" : "total"}</span>
+              </span>
+              {isPerSide && <span style={styles.weightSub}>{totalWeight} lbs total</span>}
+              {increaseLabel && <span style={styles.weightIncrease}>{increaseLabel}</span>}
+            </>
+          ) : (
+            <span style={styles.weightEmpty}>enter starting weight in Setup</span>
+          )}
+          <button style={styles.overrideToggle} onClick={() => setShowOverride(s => !s)}>
+            {showOverride ? "cancel" : override !== undefined ? "✏ overridden" : "override"}
+          </button>
+        </div>
+      )}
+      {bwMode === "bw"  && <div style={styles.weightBigAlt}>bodyweight</div>}
+      {bwMode === "bar" && <div style={styles.weightBigAlt}>bar only · 45 lbs</div>}
+
+      {/* Override input — hidden by default */}
+      {!inputDisabled && showOverride && (
+        <div style={styles.weightRow}>
+          <input
+            type="number"
+            style={styles.weightInput}
+            value={override !== undefined ? override : ""}
+            onChange={e => onOverride(e.target.value)}
+            placeholder={`override (lbs ${isPerSide ? "each side" : "total"})`}
+            autoFocus
+          />
+          {override !== undefined && (
+            <button style={styles.resetBtn} onClick={() => { onReset(); setShowOverride(false); }}>reset</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── WorkoutView ──────────────────────────────────────────────────────────────
+function WorkoutView({ day, dayId, planKey, weekIndex, fuckIt, getWorkingWeight, getFuckItWeight, getPrevWeight, weekCfg, completedSets, toggleSet, allSetsComplete, finishWorkout, onBack, tooltip, setTooltip, weightOverrides, setWeightOverrides, setReps, repsDone, skippedSets, skipSet, exerciseSwaps, onSwapExercise }) {
+  const cycleWeek = weekIndex % 4;
+  const [bwModes, setBwModes] = useState({});
+
+  // Resolve the active name for a swappable exercise
+  function resolveExName(ex) {
+    if (!EXERCISE_SWAPS[ex.name]) return ex.name;
+    const swapKey = `${planKey}_${dayId}_${ex.name}`;
+    return exerciseSwaps[swapKey] || ex.name;
+  }
+
+  return (
+    <div>
+      <div style={styles.workoutHeader}>
+        <button style={styles.backBtn} onClick={onBack}>← Back</button>
+        <div>
+          <div style={styles.workoutTitle}>{fuckIt ? "⚡ Fuck It Day" : day.label}</div>
+          {fuckIt && <div style={styles.fuckItNote}>70% deload · no warmups · won't break progression</div>}
+          {!fuckIt && <div style={styles.rpeTag}>{weekCfg.rpe} · {weekCfg.label}</div>}
+        </div>
+      </div>
+
+      {day.exercises.map((ex, ei) => {
+        const activeName = resolveExName(ex);
+        const swapKey = `${planKey}_${dayId}_${ex.name}`;
+        const swapOptions = EXERCISE_SWAPS[ex.name];
+        const workWeight = fuckIt ? getFuckItWeight(activeName, ex.prog, planKey, dayId) : getWorkingWeight(activeName, ex.prog, planKey, dayId);
+        const prevWeight = getPrevWeight ? getPrevWeight(activeName, ex.prog, planKey, dayId) : null;
+        const reps = getRepsForWeek([ex.reps[0], ex.reps[1]], weekIndex);
+        const warmups = (!fuckIt && workWeight) ? getWarmupSets(workWeight, ex.reps[0]) : [];
+        const override = weightOverrides[activeName];
+
+        return (
+          <div key={ex.name} style={styles.exCard}>
+            {ex.superset && <div style={styles.supersetTag}>SUPERSET</div>}
+            <div style={styles.exHeader}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 0 }}>
+                {swapOptions ? (
+                  <select
+                    value={activeName}
+                    onChange={e => onSwapExercise(swapKey, e.target.value)}
+                    style={{ fontFamily: "Georgia, serif", fontStyle: "italic", fontWeight: 700, fontSize: 15, color: C.greenDark, background: "transparent", border: "none", borderBottom: `1.5px dashed ${C.petalDark}`, padding: "0 2px 2px 0", cursor: "pointer", appearance: "auto", width: "100%", outline: "none" }}
+                  >
+                    {swapOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                ) : (
+                  <span style={styles.exName}>
+                    {activeName}
+                    {ex.perSide && <span style={styles.perSideTag}> · each side</span>}
+                  </span>
+                )}
+                {swapOptions && ex.perSide && <span style={styles.perSideTag}>each side</span>}
+              </div>
+              <button
+                style={styles.infoBtn}
+                onClick={() => setTooltip(tooltip === activeName ? null : activeName)}
+                title="How to do this exercise"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:15,height:15}}>
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+              </button>
+            </div>
+
+            {tooltip === activeName && (
+              <div style={styles.tooltipBox}>
+                {EXERCISE_TIPS[activeName] && (
+                  <span style={styles.ytLink}>💡 {EXERCISE_TIPS[activeName]}</span>
+                )}
+              </div>
+            )}
+
+            <WeightDisplay
+              weight={workWeight}
+              prevWeight={prevWeight}
+              exName={activeName}
+              override={weightOverrides[activeName]}
+              onOverride={val => setWeightOverrides(w => ({...w, [activeName]: val}))}
+              onReset={() => setWeightOverrides(w => { const n={...w}; delete n[activeName]; return n; })}
+              bwMode={bwModes[activeName] || null}
+              onBwMode={mode => setBwModes(m => ({...m, [activeName]: mode}))}
+            />
+
+            {/* Warmup sets */}
+            {warmups.length > 0 && (
+              <div style={styles.warmupSection}>
+                <div style={styles.warmupTitle}>Warm-up sets</div>
+                {warmups.map((wu, wi) => {
+                  const isPS = PER_SIDE_LOAD.has(activeName);
+                  // wu.weight is total (calculated from base which is per-side * 2)
+                  const psSide = isPS ? (wu.weight / 2).toFixed(1).replace(/\.0$/, "") : null;
+                  return (
+                    <div key={wi} style={styles.warmupRow}>
+                      <span style={styles.warmupPct}>{Math.round(wu.pct*100)}%</span>
+                      <div style={{flex:1}}>
+                        {isPS
+                          ? <><span style={styles.warmupWeight}>{psSide} lbs each side</span><span style={styles.warmupPlateLabel}> ({wu.weight} total)</span></>
+                          : <span style={styles.warmupWeight}>{wu.weight} lbs</span>
+                        }
+                      </div>
+                      <span style={styles.warmupReps}>× {wu.reps} reps</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Working sets */}
+            <div style={styles.setsSection}>
+              <div style={styles.setsTitle}>Working sets — {reps[0]}–{reps[1]} reps</div>
+              <div style={styles.setsCol}>
+                {[0,1,2].map(si => {
+                  const key = `${ex.name}_${si}`;
+                  const done = completedSets[key];
+                  const skipped = skippedSets[key];
+                  const repVal = repsDone[key];
+                  const topRep = reps[1];
+                  const hitTop = repVal >= topRep;
+                  return (
+                    <div key={si} style={styles.setRow}>
+                      <button
+                        style={{...styles.setBtn, ...(skipped ? styles.setBtnSkipped : done ? (hitTop ? styles.setBtnDone : styles.setBtnDonePartial) : {})}}
+                        onClick={() => skipped ? skipSet(key) : toggleSet(key)}
+                      >
+                        {skipped ? "skipped" : done
+                          ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}><polyline points="20 6 9 17 4 12"/></svg>
+                          : `Set ${si+1}`
+                        }
+                      </button>
+                      {done && !skipped && (
+                        <div style={styles.repInputWrap}>
+                          <input
+                            type="number"
+                            min="0"
+                            max="99"
+                            style={{...styles.repInput, ...(hitTop ? styles.repInputHit : {})}}
+                            value={repVal || ""}
+                            onChange={e => setReps(key, parseInt(e.target.value) || 0)}
+                            placeholder="reps"
+                            autoFocus={!repVal}
+                          />
+                          <span style={styles.repLabel}>
+                            {repVal ? (hitTop ? "✓" : `goal: ${topRep}`) : "reps?"}
+                          </span>
+                          <button style={styles.skipInlineBtn} onClick={() => skipSet(key)}>skip</button>
+                        </div>
+                      )}
+                      {!done && !skipped && (
+                        <button style={styles.skipInlineBtn} onClick={() => skipSet(key)}>skip</button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Superset partner */}
+            {ex.superset && (
+              <div style={{...styles.exCard, marginTop: 10, background: "rgba(255,200,100,0.05)", border: "1px solid rgba(255,200,100,0.15)"}}>
+                <div style={styles.exHeader}>
+                  <span style={styles.exName}>{ex.superset}</span>
+                  <button style={styles.infoBtn} onClick={() => setTooltip(tooltip === ex.superset ? null : ex.superset)}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:15,height:15}}>
+                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                  </button>
+                </div>
+                {tooltip === ex.superset && (
+                  <div style={styles.tooltipBox}>
+                    {EXERCISE_TIPS[ex.superset] && (
+                      <span style={styles.ytLink}>💡 {EXERCISE_TIPS[ex.superset]}</span>
+                    )}
+                  </div>
+                )}
+                <div style={styles.setsCol}>
+                  {[0,1,2].map(si => {
+                    const key = `${ex.superset}_${si}`;
+                    const done = completedSets[key];
+                    const skipped = skippedSets[key];
+                    const repVal = repsDone[key];
+                    const topRep = reps[1];
+                    const hitTop = repVal >= topRep;
+                    return (
+                      <div key={si} style={styles.setRow}>
+                        <button
+                          style={{...styles.setBtn, ...(skipped ? styles.setBtnSkipped : done ? (hitTop ? styles.setBtnDone : styles.setBtnDonePartial) : {})}}
+                          onClick={() => skipped ? skipSet(key) : toggleSet(key)}
+                        >
+                          {skipped ? "skipped" : done
+                            ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}><polyline points="20 6 9 17 4 12"/></svg>
+                            : `Set ${si+1}`
+                          }
+                        </button>
+                        {done && !skipped && (
+                          <div style={styles.repInputWrap}>
+                            <input
+                              type="number"
+                              min="0"
+                              max="99"
+                              style={{...styles.repInput, ...(hitTop ? styles.repInputHit : {})}}
+                              value={repVal || ""}
+                              onChange={e => setReps(key, parseInt(e.target.value) || 0)}
+                              placeholder="reps"
+                            />
+                            <span style={styles.repLabel}>
+                              {repVal ? (hitTop ? "✓" : `goal: ${topRep}`) : "reps?"}
+                            </span>
+                            <button style={styles.skipInlineBtn} onClick={() => skipSet(key)}>skip</button>
+                          </div>
+                        )}
+                        {!done && !skipped && (
+                          <button style={styles.skipInlineBtn} onClick={() => skipSet(key)}>skip</button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {allSetsComplete ? (
+        <button style={styles.finishBtn} onClick={finishWorkout}>
+          ✓ Finish & Log Workout
+        </button>
+      ) : (
+        <div style={styles.finishHint}>
+          {(() => {
+            const missing = [];
+            day.exercises.forEach(ex => {
+              for (let i = 0; i < 3; i++) {
+                if (!completedSets[`${ex.name}_${i}`]) { missing.push("sets"); break; }
+              }
+              if (!fuckIt) {
+                for (let i = 0; i < 3; i++) {
+                  if (completedSets[`${ex.name}_${i}`] && !repsDone[`${ex.name}_${i}`]) { missing.push("reps"); break; }
+                }
+              }
+            });
+            const u = [...new Set(missing)];
+            if (u.includes("sets") && u.includes("reps")) return "✓ check off all sets and enter reps to finish";
+            if (u.includes("sets")) return "✓ check off all sets to finish";
+            if (u.includes("reps")) return "✓ enter reps for all completed sets to finish";
+            return "almost there...";
+          })()}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── SetupView ────────────────────────────────────────────────────────────────
+function SetupView({ user, updateUser }) {
+  const [localWeights, setLocalWeights] = useState({ ...user.baseWeights });
+  const [localName, setLocalName] = useState(user.name);
+  const [saved, setSaved] = useState(false);
+
+  function save() {
+    updateUser({
+      baseWeights: localWeights,
+      name: localName,
+      weightsSetWeek: user.currentWeek,
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  function handleWeekChange(delta) {
+    const newWeek = Math.max(0, Math.min(7, user.currentWeek + delta));
+    updateUser({ currentWeek: newWeek });
+  }
+
+  function handlePlanChange(plan) {
+    updateUser({ currentPlan: plan, currentWeek: 0 });
+  }
+
+  return (
+    <div style={styles.content}>
+      <div style={styles.sectionTitle}>setup</div>
+
+      <div style={styles.setupCard}>
+        <label style={styles.setupLabel}>Display Name</label>
+        <input style={styles.setupInput} value={localName} onChange={e => setLocalName(e.target.value)} />
+      </div>
+
+      <div style={styles.setupCard}>
+        <label style={styles.setupLabel}>Current Plan</label>
+        <div style={styles.planToggle}>
+          {["A","B"].map(p => (
+            <button key={p} style={{...styles.planBtn, ...(user.currentPlan === p ? styles.planBtnActive : {})}}
+              onClick={() => handlePlanChange(p)}>
+              Plan {p}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={styles.setupCard}>
+        <label style={styles.setupLabel}>Program Week ({user.currentWeek + 1} of 8)</label>
+        <div style={styles.weekAdjust}>
+          <button style={styles.adjBtn} onClick={() => handleWeekChange(-1)}>−</button>
+          <span style={styles.weekNum}>Week {user.currentWeek + 1}</span>
+          <button style={styles.adjBtn} onClick={() => handleWeekChange(1)}>+</button>
+        </div>
+      </div>
+
+      {["A","B"].map(planKey => (
+        <div key={planKey}>
+          <div style={styles.planHeader}>Plan {planKey} — Starting Weights (lbs)</div>
+          {PLANS[planKey].days.map(day => (
+            <div key={day.id} style={styles.setupCard}>
+              <div style={styles.setupDayLabel}>{day.label}</div>
+              {day.exercises.map(ex => {
+                const val = parseFloat(localWeights[`${planKey}_${ex.name}`]);
+                const isPS = PER_SIDE_LOAD.has(ex.name);
+                const hasBw = HAS_BW_OPTION.has(ex.name);
+                const totalVal = (isPS && val) ? (val * 2).toFixed(1).replace(/\.0$/, "") : null;
+                return (
+                  <div key={ex.name} style={styles.setupExBlock}>
+                    <div style={styles.setupExRow}>
+                      <span style={styles.setupExName}>{ex.name}</span>
+                      <div style={{display:"flex", alignItems:"center", gap:6}}>
+                        {hasBw && (
+                          <select
+                            style={styles.setupBwSelect}
+                            value={localWeights[`${planKey}_${ex.name}_bw`] || "weight"}
+                            onChange={e => setLocalWeights(w => ({...w, [`${planKey}_${ex.name}_bw`]: e.target.value}))}
+                          >
+                            <option value="weight">+ weight</option>
+                            <option value="bar">bar only</option>
+                            <option value="bw">bodyweight</option>
+                          </select>
+                        )}
+                        {(!localWeights[`${planKey}_${ex.name}_bw`] || localWeights[`${planKey}_${ex.name}_bw`] === "weight") && (
+                          <input
+                            type="number"
+                            style={styles.setupWeightInput}
+                            placeholder={isPS ? "lbs/side" : "lbs"}
+                            value={localWeights[`${planKey}_${ex.name}`] || ""}
+                            onChange={e => setLocalWeights(w => ({...w, [`${planKey}_${ex.name}`]: e.target.value}))}
+                          />
+                        )}
+                      </div>
+                    </div>
+                    {isPS && val > 0 && (!localWeights[`${planKey}_${ex.name}_bw`] || localWeights[`${planKey}_${ex.name}_bw`] === "weight") && (
+                      <div style={styles.setupPlateRow}>
+                        <span style={styles.setupPlateHint}>{totalVal} lbs total</span>
+                      </div>
+                    )}
+                    {ex.superset && (
+                      <div style={{marginTop: 8}}>
+                        <div style={styles.setupExRow}>
+                          <span style={styles.setupExName}>{ex.superset} <span style={{opacity:.5}}>(superset)</span></span>
+                          <input
+                            type="number"
+                            style={styles.setupWeightInput}
+                            placeholder="lbs/side"
+                            value={localWeights[`${planKey}_${ex.superset}`] || ""}
+                            onChange={e => setLocalWeights(w => ({...w, [`${planKey}_${ex.superset}`]: e.target.value}))}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      ))}
+
+      <button style={{...styles.primaryBtn, marginTop: 16}} onClick={save}>
+        {saved ? "✓ Saved!" : "Save Changes"}
+      </button>
+    </div>
+  );
+}
+
+// ── StatsView ────────────────────────────────────────────────────────────────
+function StatsView({ user }) {
+  const logs = (user.workoutLog || []).filter(l => !l.fuckIt);
+  const allLogs = user.workoutLog || [];
+
+  // ── Streak ───────────────────────────────────────────────────────────────
+  const currentStreak = user.streak || 0;
+  const longestStreak = (() => {
+    // Walk through all logs grouped by ISO week, count max consecutive weeks
+    const weeks = [...new Set(allLogs.map(l => `${getISOYear(l.date)}-${String(getISOWeek(l.date)).padStart(2,"0")}`))]
+      .sort();
+    if (!weeks.length) return 0;
+    let max = 1, cur = 1;
+    for (let i = 1; i < weeks.length; i++) {
+      const [py, pw] = weeks[i-1].split("-").map(Number);
+      const [cy, cw] = weeks[i].split("-").map(Number);
+      const consecutive = (cy === py && cw === pw + 1) || (cy === py + 1 && pw >= 52 && cw === 1);
+      if (consecutive) { cur++; max = Math.max(max, cur); }
+      else cur = 1;
+    }
+    return Math.max(max, currentStreak);
+  })();
+
+  // ── Cycles ───────────────────────────────────────────────────────────────
+  // Each completed 8-week cycle = 3 days logged per week × 8 weeks
+  // Approximate from total weeks where ≥3 distinct days were logged
+  const weekMap = {};
+  allLogs.forEach(l => {
+    const wk = `${getISOYear(l.date)}-${String(getISOWeek(l.date)).padStart(2,"0")}`;
+    if (!weekMap[wk]) weekMap[wk] = new Set();
+    weekMap[wk].add(l.dayId);
+  });
+  const completedWeeks = Object.values(weekMap).filter(s => s.size >= 3).length;
+  const completedCycles = Math.floor(completedWeeks / 8);
+  const weeksIntoCurrent = completedWeeks % 8;
+
+  // ── Total volume & sessions ───────────────────────────────────────────────
+  const totalSessions = allLogs.length;
+  const fuckItCount = allLogs.filter(l => l.fuckIt).length;
+  const firstDate = allLogs.length ? allLogs[0].date : null;
+
+  // ── Days trained breakdown ────────────────────────────────────────────────
+  const dayCount = {};
+  allLogs.forEach(l => { dayCount[l.dayId] = (dayCount[l.dayId] || 0) + 1; });
+
+  // ── Weight progression per exercise ──────────────────────────────────────
+  // For each exercise, find first and most recent logged weight
+  const weightHistory = {}; // exName -> [{date, weight}]
+  logs.forEach(log => {
+    if (!log.entries) return;
+    Object.entries(log.entries).forEach(([exName, sets]) => {
+      if (!weightHistory[exName]) weightHistory[exName] = [];
+      const setWeights = Object.values(sets || {}).map(s => parseFloat(s.weight)).filter(w => !isNaN(w) && w > 0);
+      if (setWeights.length) {
+        const avg = Math.round(setWeights.reduce((a,b)=>a+b,0) / setWeights.length);
+        weightHistory[exName].push({ date: log.date, weight: avg });
+      }
+    });
+  });
+
+  // Build progression summary: group by plan day label
+  const exerciseGroups = {};
+  ["A","B"].forEach(planKey => {
+    PLANS[planKey].days.forEach(day => {
+      day.exercises.forEach(ex => {
+        const hist = weightHistory[ex.name];
+        if (hist && hist.length >= 1) {
+          const first = hist[0];
+          const latest = hist[hist.length - 1];
+          const gain = latest.weight - first.weight;
+          if (!exerciseGroups[planKey]) exerciseGroups[planKey] = [];
+          exerciseGroups[planKey].push({ name: ex.name, first: first.weight, latest: latest.weight, gain, sessions: hist.length });
+        }
+        if (ex.superset) {
+          const hist2 = weightHistory[ex.superset];
+          if (hist2 && hist2.length >= 1) {
+            const first = hist2[0];
+            const latest = hist2[hist2.length - 1];
+            const gain = latest.weight - first.weight;
+            if (!exerciseGroups[planKey]) exerciseGroups[planKey] = [];
+            exerciseGroups[planKey].push({ name: ex.superset, first: first.weight, latest: latest.weight, gain, sessions: hist2.length });
+          }
+        }
+      });
+    });
+  });
+
+  // ── Personal bests (highest single logged weight per exercise) ────────────
+  const prs = {};
+  logs.forEach(log => {
+    if (!log.entries) return;
+    Object.entries(log.entries).forEach(([exName, sets]) => {
+      const setWeights = Object.values(sets || {}).map(s => parseFloat(s.weight)).filter(w => !isNaN(w) && w > 0);
+      if (setWeights.length) {
+        const max = Math.max(...setWeights);
+        if (!prs[exName] || max > prs[exName].weight) prs[exName] = { weight: max, date: log.date };
+      }
+    });
+  });
+
+  const hasPRs = Object.keys(prs).length > 0;
+  const hasWeightData = Object.keys(exerciseGroups).length > 0;
+
+  const StatCard = ({ children, style }) => (
+    <div style={{ background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: "14px 16px", ...style }}>
+      {children}
+    </div>
+  );
+
+  const SectionLabel = ({ children }) => (
+    <div style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: C.textMid, marginBottom: 10, fontWeight: 700 }}>
+      {children}
+    </div>
+  );
+
+  const GainPill = ({ gain }) => {
+    if (gain === 0) return <span style={{ fontSize: 11, color: C.textMid, fontStyle: "italic" }}>no change</span>;
+    const pos = gain > 0;
+    return (
+      <span style={{ fontSize: 11, fontWeight: 700, color: pos ? C.accent : "#c0392b", background: pos ? C.petal : "#fdecea", padding: "2px 7px", borderRadius: 20 }}>
+        {pos ? "+" : ""}{gain} lbs
+      </span>
+    );
+  };
+
+  // Simple inline bar chart
+  const MiniBar = ({ value, max, color }) => (
+    <div style={{ height: 6, borderRadius: 4, background: C.border, flex: 1, overflow: "hidden" }}>
+      <div style={{ height: "100%", width: `${Math.min(100, (value/max)*100)}%`, background: color || C.accent, borderRadius: 4, transition: "width .4s" }} />
+    </div>
+  );
+
+  return (
+    <div style={styles.content}>
+      <div style={styles.sectionTitle}>your progress</div>
+
+      {totalSessions === 0 ? (
+        <div style={{ textAlign: "center", color: C.textMid, fontStyle: "italic", padding: "40px 0", fontSize: 14 }}>
+          finish your first workout to see stats here 🌱
+        </div>
+      ) : (<>
+
+        {/* ── STREAK ── */}
+        <SectionLabel>streak</SectionLabel>
+        <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+          <StatCard style={{ flex: 1, textAlign: "center" }}>
+            <div style={{ fontSize: 34, fontWeight: 700, color: C.accent, lineHeight: 1 }}>{currentStreak}</div>
+            <div style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>current 🔥</div>
+            <div style={{ fontSize: 10, color: C.textMid, fontStyle: "italic", marginTop: 2 }}>weeks in a row</div>
+          </StatCard>
+          <StatCard style={{ flex: 1, textAlign: "center" }}>
+            <div style={{ fontSize: 34, fontWeight: 700, color: C.greenDark, lineHeight: 1 }}>{longestStreak}</div>
+            <div style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>best ever 🏆</div>
+            <div style={{ fontSize: 10, color: C.textMid, fontStyle: "italic", marginTop: 2 }}>weeks in a row</div>
+          </StatCard>
+        </div>
+
+        {/* ── CYCLES ── */}
+        <SectionLabel>program cycles</SectionLabel>
+        <StatCard style={{ marginBottom: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div>
+              <span style={{ fontSize: 28, fontWeight: 700, color: C.greenDark }}>{completedCycles}</span>
+              <span style={{ fontSize: 13, color: C.textMid, marginLeft: 6 }}>full {completedCycles === 1 ? "cycle" : "cycles"} completed</span>
+            </div>
+            {completedCycles > 0 && (
+              <span style={{ fontSize: 11, color: C.accent, fontWeight: 700, background: C.petal, padding: "3px 10px", borderRadius: 20 }}>
+                Plan {completedCycles % 2 === 0 ? "A" : "B"} next
+              </span>
+            )}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <MiniBar value={weeksIntoCurrent} max={8} />
+            <span style={{ fontSize: 11, color: C.textMid, whiteSpace: "nowrap" }}>{weeksIntoCurrent}/8 wks</span>
+          </div>
+          <div style={{ fontSize: 11, color: C.textMid, fontStyle: "italic" }}>into current cycle</div>
+        </StatCard>
+
+        {/* ── SESSIONS ── */}
+        <SectionLabel>sessions</SectionLabel>
+        <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+          <StatCard style={{ flex: 1, textAlign: "center" }}>
+            <div style={{ fontSize: 28, fontWeight: 700, color: C.greenDark }}>{totalSessions}</div>
+            <div style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>total sessions</div>
+          </StatCard>
+          <StatCard style={{ flex: 1, textAlign: "center" }}>
+            <div style={{ fontSize: 28, fontWeight: 700, color: C.fuckIt || "#c17f3e" }}>{fuckItCount}</div>
+            <div style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>⚡ fuck it days</div>
+          </StatCard>
+          {firstDate && (
+            <StatCard style={{ flex: 1, textAlign: "center" }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: C.greenDark, lineHeight: 1.2 }}>
+                {Math.floor((new Date() - new Date(firstDate)) / (1000*60*60*24))}
+              </div>
+              <div style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>days since<br/>day one</div>
+            </StatCard>
+          )}
+        </div>
+
+        {/* ── WEIGHT GAINS ── */}
+        {hasWeightData && (<>
+          <SectionLabel>weight progression</SectionLabel>
+          {["A","B"].filter(pk => exerciseGroups[pk]?.length).map(pk => (
+            <div key={pk} style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, color: C.accent, fontWeight: 700, marginBottom: 8, fontStyle: "italic" }}>
+                Plan {pk} — {PLANS[pk].name}
+              </div>
+              <StatCard>
+                {exerciseGroups[pk].sort((a,b) => b.gain - a.gain).map((ex, i) => (
+                  <div key={ex.name} style={{ display: "flex", alignItems: "center", gap: 10, paddingBottom: i < exerciseGroups[pk].length-1 ? 10 : 0, marginBottom: i < exerciseGroups[pk].length-1 ? 10 : 0, borderBottom: i < exerciseGroups[pk].length-1 ? `1px solid ${C.border}` : "none" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ex.name}</div>
+                      <div style={{ fontSize: 10, color: C.textMid, marginTop: 1 }}>{ex.first} → {ex.latest} lbs · {ex.sessions} {ex.sessions === 1 ? "session" : "sessions"}</div>
+                    </div>
+                    <GainPill gain={ex.gain} />
+                  </div>
+                ))}
+              </StatCard>
+            </div>
+          ))}
+        </>)}
+
+        {/* ── PERSONAL BESTS ── */}
+        {hasPRs && (<>
+          <SectionLabel style={{ marginTop: 4 }}>personal bests 🏅</SectionLabel>
+          <StatCard style={{ marginBottom: 20 }}>
+            {Object.entries(prs).sort((a,b) => b[1].weight - a[1].weight).map(([name, pr], i, arr) => (
+              <div key={name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: i < arr.length-1 ? 9 : 0, marginBottom: i < arr.length-1 ? 9 : 0, borderBottom: i < arr.length-1 ? `1px solid ${C.border}` : "none" }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{name}</div>
+                  <div style={{ fontSize: 10, color: C.textMid }}>{pr.date}</div>
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.greenDark }}>{pr.weight} lbs</div>
+              </div>
+            ))}
+          </StatCard>
+        </>)}
+
+        {/* ── FUN FACT ── */}
+        {totalSessions >= 3 && (
+          <StatCard style={{ background: C.petal, border: `1.5px solid ${C.petalDark}`, textAlign: "center", marginBottom: 8 }}>
+            <div style={{ fontSize: 18, marginBottom: 4 }}>🌿</div>
+            <div style={{ fontSize: 12, color: C.greenDark, fontStyle: "italic", lineHeight: 1.5 }}>
+              {totalSessions >= 50 ? `${totalSessions} sessions strong. you're not just building a body — you're building a person.`
+               : totalSessions >= 20 ? `${totalSessions} sessions in. the hardest part was starting. you already did that.`
+               : totalSessions >= 10 ? `${totalSessions} sessions down. most people quit before this. you didn't.`
+               : `${totalSessions} sessions in the books. every rep is a vote for the person you're becoming.`}
+            </div>
+          </StatCard>
+        )}
+
+      </>)}
+    </div>
+  );
+}
+
+// ── Styles ───────────────────────────────────────────────────────────────────
+const C = {
+  bg: "#f7f5f0",
+  surface: "#ffffff",
+  surfaceAlt: "#f0ede6",
+  border: "#e0dbd0",
+  accent: "#4a7c59",        // plant green
+  accentLight: "#d4e8d8",
+  accentDim: "rgba(74,124,89,0.12)",
+  fuckIt: "#c17f3e",        // warm amber
+  fuckItDim: "rgba(193,127,62,0.10)",
+  text: "#2d2a24",
+  textMid: "#8a8275",
+  textDim: "#c5bfb5",
+  green: "#4a7c59",
+  greenDim: "rgba(74,124,89,0.12)",
+  greenDark: "#2d5a3d",
+  petal: "#e8f0e9",
+  petalDark: "#c5d9c8",
+};
+
+const styles = {
+  root: {
+    fontFamily: "'Georgia', 'Times New Roman', serif",
+    background: C.bg,
+    color: C.text,
+    minHeight: "100vh",
+    maxWidth: 520,
+    margin: "0 auto",
+    position: "relative",
+    paddingBottom: 80,
+  },
+  grain: {
+    position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0,
+    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.025'/%3E%3C/svg%3E")`,
+  },
+  header: {
+    display: "flex", justifyContent: "space-between", alignItems: "center",
+    padding: "16px 20px 14px", borderBottom: `1px solid ${C.border}`,
+    position: "sticky", top: 0, background: C.bg, zIndex: 10,
+  },
+  headerLeft: { display: "flex", alignItems: "center", gap: 10 },
+  logo: { fontSize: 21, fontWeight: 700, fontStyle: "italic", color: C.greenDark, letterSpacing: "-0.01em" },
+  logoAccent: { color: C.accent },
+  streakBadge: {
+    display: "flex", alignItems: "center", gap: 4,
+    fontSize: 11, color: C.fuckIt, background: C.fuckItDim,
+    padding: "3px 10px", borderRadius: 20, fontFamily: "'Georgia', serif",
+  },
+  weekBanner: {
+    display: "flex", justifyContent: "space-between", alignItems: "center",
+    padding: "11px 20px", background: C.petal, borderBottom: `1px solid ${C.border}`,
+  },
+  weekInfo: { display: "flex", flexDirection: "column", gap: 2 },
+  weekLabel: { fontSize: 12, fontWeight: 700, color: C.greenDark, letterSpacing: "0.03em", fontStyle: "italic", display:"flex", alignItems:"center", gap: 4 },
+  weekSub: { fontSize: 11, color: C.textMid },
+  weekDots: { display: "flex", gap: 5, alignItems: "center" },
+  weekDot: { width: 9, height: 9, borderRadius: "50%", background: C.petalDark, transition: "all .2s" },
+  weekDotActive: { background: C.accent, boxShadow: `0 0 6px rgba(74,124,89,0.5)`, transform: "scale(1.2)" },
+  weekDotDone: { background: C.accentLight, border: `1.5px solid ${C.accent}` },
+  nav: {
+    display: "flex", gap: 0, borderBottom: `1px solid ${C.border}`,
+    position: "sticky", top: 55, background: C.bg, zIndex: 9,
+  },
+  navBtn: {
+    flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+    padding: "12px 8px", border: "none", background: "transparent",
+    color: C.textMid, fontSize: 12, cursor: "pointer", fontFamily: "inherit",
+    borderBottom: "2px solid transparent", transition: "all .15s",
+  },
+  navBtnActive: { color: C.accent, borderBottomColor: C.accent, fontWeight: 700 },
+  content: { padding: "20px 16px" },
+  sectionTitle: { fontSize: 20, fontWeight: 700, fontStyle: "italic", marginBottom: 16, color: C.greenDark },
+  dayGrid: { display: "flex", flexDirection: "column", gap: 10 },
+  dayCard: {
+    display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 5,
+    padding: "16px 18px", background: C.surface, border: `1.5px solid ${C.border}`,
+    borderRadius: 16, cursor: "pointer", textAlign: "left",
+    fontFamily: "inherit", color: C.text, transition: "all .15s",
+    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+  },
+  dayCardDone: {
+    opacity: 0.5, cursor: "default",
+    background: C.petal, border: `1.5px solid ${C.petalDark}`,
+  },
+  fuckItDivider: {
+    fontSize: 11, color: C.fuckIt, letterSpacing: "0.04em",
+    marginBottom: 8, marginTop: 8, fontStyle: "italic",
+  },
+  fuckItCard: {
+    background: C.fuckItDim, border: `1.5px solid rgba(193,127,62,0.3)`,
+    flexDirection: "row", alignItems: "center", gap: 10, color: C.fuckIt,
+  },
+  dayCardLabel: { fontSize: 15, fontWeight: 700, fontStyle: "italic" },
+  dayCardSub: { fontSize: 11, color: C.textMid },
+  workoutHeader: { display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 20 },
+  backBtn: {
+    padding: "6px 0", background: "transparent", border: "none",
+    color: C.textMid, fontSize: 13, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", marginTop: 2,
+  },
+  workoutTitle: { fontSize: 19, fontWeight: 700, fontStyle: "italic", color: C.greenDark },
+  fuckItNote: { fontSize: 11, color: C.fuckIt, marginTop: 2 },
+  rpeTag: { fontSize: 11, color: C.accent, marginTop: 2, fontStyle: "italic" },
+  exCard: {
+    background: C.surface, border: `1.5px solid ${C.border}`,
+    borderRadius: 16, padding: "14px 16px", marginBottom: 12,
+    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+  },
+  supersetTag: {
+    fontSize: 9, letterSpacing: "0.1em", color: C.fuckIt,
+    background: C.fuckItDim, padding: "2px 7px", borderRadius: 20,
+    display: "inline-block", marginBottom: 8,
+  },
+  exHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  exName: { fontSize: 14, fontWeight: 700, fontStyle: "italic", color: C.greenDark },
+  perSideTag: { fontSize: 11, color: C.textMid, fontWeight: 400, fontStyle: "normal" },
+  infoBtn: {
+    background: C.petal, border: `1.5px solid ${C.petalDark}`, borderRadius: "50%",
+    width: 27, height: 27, display: "flex", alignItems: "center", justifyContent: "center",
+    cursor: "pointer", color: C.accent, padding: 0, flexShrink: 0, transition: "all .15s",
+  },
+  tooltipBox: {
+    background: C.petal, border: `1.5px solid ${C.petalDark}`, borderRadius: 10,
+    padding: "8px 12px", marginBottom: 10,
+  },
+  ytLink: { color: "#6b7e6e", fontSize: 12, fontStyle: "italic", display: "block", marginTop: 4, lineHeight: 1.4 },
+  weightBlock: { marginBottom: 12 },
+  modeToggle: {
+    display: "flex", gap: 0, background: C.petal, borderRadius: 20,
+    padding: 3, marginBottom: 8, width: "fit-content",
+  },
+  modeBtn: {
+    padding: "3px 12px", borderRadius: 20, border: "none", background: "transparent",
+    color: C.textMid, fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+    fontStyle: "italic", transition: "all .15s",
+  },
+  modeBtnActive: { background: C.accent, color: "#fff", fontWeight: 700 },
+  weightPrimary: {
+    display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "4px 12px",
+    background: C.petal, borderRadius: 12, padding: "10px 14px", marginBottom: 8,
+  },
+  weightBig: { fontSize: 22, fontWeight: 700, color: C.greenDark, fontStyle: "italic" },
+  weightUnit: { fontSize: 13, fontWeight: 400, color: C.textMid },
+  weightSub: { fontSize: 12, color: C.textMid, fontStyle: "italic" },
+  weightIncrease: {
+    fontSize: 11, color: C.accent, fontStyle: "italic", fontWeight: 700,
+    background: C.accentLight, padding: "2px 8px", borderRadius: 20,
+  },
+  weightBigAlt: {
+    fontSize: 18, fontWeight: 700, color: C.greenDark, fontStyle: "italic",
+    background: C.petal, borderRadius: 12, padding: "10px 14px", marginBottom: 8,
+  },
+  weightEmpty: { fontSize: 12, color: C.textMid, fontStyle: "italic" },
+  overrideToggle: {
+    fontSize: 10, color: C.textMid, background: "transparent", border: `1px solid ${C.border}`,
+    borderRadius: 20, padding: "2px 8px", cursor: "pointer", fontFamily: "inherit",
+    fontStyle: "italic", marginLeft: "auto",
+  },
+  weightHint: { fontSize: 12, color: C.textMid, marginTop: 4, fontStyle: "italic" },
+  warmupPlateLabel: { fontSize: 11, color: C.textMid },
+  weightRow: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6 },
+  weightLabel: { fontSize: 11, color: C.textMid, whiteSpace: "nowrap" },
+  weightInput: {
+    width: 70, padding: "4px 8px", background: C.petal, border: `1.5px solid ${C.petalDark}`,
+    borderRadius: 8, color: C.greenDark, fontSize: 14, fontFamily: "inherit", fontWeight: 700,
+    textAlign: "right",
+  },
+  lbsLabel: { fontSize: 11, color: C.textMid },
+  resetBtn: {
+    fontSize: 10, color: C.textMid, background: "transparent", border: `1px solid ${C.border}`,
+    borderRadius: 20, padding: "2px 8px", cursor: "pointer", fontFamily: "inherit",
+  },
+  warmupSection: { marginBottom: 12 },
+  warmupTitle: { fontSize: 10, color: C.textMid, letterSpacing: "0.07em", marginBottom: 6, textTransform: "uppercase" },
+  warmupRow: {
+    display: "flex", gap: 10, alignItems: "center",
+    padding: "5px 0", borderBottom: `1px solid ${C.border}`, fontSize: 12,
+  },
+  warmupPct: { width: 34, color: C.textMid, fontSize: 11 },
+  warmupWeight: { color: C.greenDark, fontWeight: 700, width: 60 },
+  warmupReps: { color: C.textMid },
+  setsSection: {},
+  setsTitle: { fontSize: 10, color: C.textMid, letterSpacing: "0.07em", marginBottom: 8, textTransform: "uppercase" },
+  setsRow: { display: "flex", gap: 8 },
+  setsCol: { display: "flex", flexDirection: "column", gap: 8 },
+  setRow: { display: "flex", alignItems: "center", gap: 10 },
+  setBtn: {
+    width: 80, flexShrink: 0, padding: "9px 0", background: C.surfaceAlt, border: `1.5px solid ${C.border}`,
+    borderRadius: 12, color: C.textMid, fontSize: 12, cursor: "pointer", fontFamily: "inherit",
+    display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s",
+  },
+  setBtnDone: { background: C.accentLight, border: `1.5px solid ${C.accent}`, color: C.greenDark },
+  setBtnDonePartial: { background: "rgba(193,127,62,0.12)", border: `1.5px solid rgba(193,127,62,0.4)`, color: C.fuckIt },
+  setBtnSkipped: { background: C.surfaceAlt, border: `1.5px dashed ${C.border}`, color: C.textMid, opacity: 0.5, fontSize: 10, fontStyle: "italic" },
+  skipInlineBtn: {
+    fontSize: 10, color: C.textMid, background: "transparent", border: `1px solid ${C.border}`,
+    borderRadius: 20, padding: "2px 8px", cursor: "pointer", fontFamily: "inherit",
+    fontStyle: "italic", opacity: 0.6, flexShrink: 0,
+  },
+  repInputWrap: { display: "flex", alignItems: "center", gap: 6, flex: 1 },
+  repInput: {
+    width: 56, padding: "7px 8px", background: C.surfaceAlt, border: `1.5px solid ${C.border}`,
+    borderRadius: 10, color: C.text, fontSize: 14, fontFamily: "inherit", fontWeight: 700,
+    textAlign: "center",
+  },
+  repInputHit: { background: C.accentLight, border: `1.5px solid ${C.accent}`, color: C.greenDark },
+  repLabel: { fontSize: 11, color: C.textMid, fontStyle: "italic" },
+  finishHint: {
+    textAlign: "center", color: C.textMid, fontSize: 12, fontStyle: "italic",
+    padding: "16px 0 8px", opacity: 0.7,
+  },
+  finishBtn: {
+    width: "100%", padding: "16px", background: C.accent, border: "none",
+    borderRadius: 50, color: "#fff", fontSize: 15, fontWeight: 700, fontStyle: "italic",
+    cursor: "pointer", fontFamily: "inherit", marginTop: 8,
+    boxShadow: "0 4px 16px rgba(74,124,89,0.35)",
+  },
+  doneBanner: {
+    display: "flex", flexDirection: "column", alignItems: "center",
+    paddingTop: 60, gap: 10, textAlign: "center",
+  },
+  doneEmoji: { fontSize: 56 },
+  doneTitle: { fontSize: 24, fontWeight: 700, fontStyle: "italic", color: C.greenDark },
+  doneSub: { fontSize: 14, color: C.textMid, marginBottom: 16 },
+  primaryBtn: {
+    padding: "12px 32px", background: C.accent, border: "none",
+    borderRadius: 50, color: "#fff", fontSize: 14, fontWeight: 700, fontStyle: "italic",
+    cursor: "pointer", fontFamily: "inherit", boxShadow: "0 3px 12px rgba(74,124,89,0.3)",
+  },
+  // Setup
+  setupCard: {
+    background: C.surface, border: `1.5px solid ${C.border}`,
+    borderRadius: 16, padding: "14px 16px", marginBottom: 10,
+    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+  },
+  setupLabel: { fontSize: 11, color: C.textMid, letterSpacing: "0.07em", display: "block", marginBottom: 8, textTransform: "uppercase" },
+  setupInput: {
+    width: "100%", padding: "8px 12px", background: C.petal,
+    border: `1.5px solid ${C.petalDark}`, borderRadius: 10, color: C.text,
+    fontSize: 14, fontFamily: "inherit", boxSizing: "border-box",
+  },
+  planToggle: { display: "flex", gap: 8 },
+  planBtn: {
+    flex: 1, padding: "8px", background: C.petal, border: `1.5px solid ${C.petalDark}`,
+    borderRadius: 10, color: C.textMid, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+    fontStyle: "italic",
+  },
+  planBtnActive: { background: C.accentLight, border: `1.5px solid ${C.accent}`, color: C.greenDark, fontWeight: 700 },
+  weekAdjust: { display: "flex", alignItems: "center", gap: 16 },
+  adjBtn: {
+    width: 34, height: 34, background: C.petal, border: `1.5px solid ${C.petalDark}`,
+    borderRadius: "50%", color: C.greenDark, fontSize: 18, cursor: "pointer", fontFamily: "inherit",
+    display: "flex", alignItems: "center", justifyContent: "center",
+  },
+  weekNum: { fontSize: 14, fontWeight: 700, color: C.greenDark, fontStyle: "italic" },
+  planHeader: {
+    fontSize: 13, fontWeight: 700, color: C.accent, fontStyle: "italic",
+    marginTop: 20, marginBottom: 8,
+  },
+  setupDayLabel: { fontSize: 12, color: C.textMid, marginBottom: 10, fontStyle: "italic" },
+  setupExBlock: { marginBottom: 12 },
+  setupExRow: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 },
+  setupExRight: { display: "flex", alignItems: "center", gap: 6 },
+  setupPlateRow: { paddingLeft: 2, paddingBottom: 2 },
+  setupPlateHint: { fontSize: 11, color: C.textMid, fontStyle: "italic" },
+  setupBwSelect: {
+    padding: "4px 6px", background: C.petal, border: `1.5px solid ${C.petalDark}`,
+    borderRadius: 8, color: C.greenDark, fontSize: 11, fontFamily: "inherit",
+    fontStyle: "italic", cursor: "pointer",
+  },
+  setupExName: { fontSize: 13, color: C.text },
+  setupWeightInput: {
+    width: 80, padding: "5px 8px", background: C.petal, border: `1.5px solid ${C.petalDark}`,
+    borderRadius: 8, color: C.greenDark, fontSize: 13, fontFamily: "inherit",
+    textAlign: "right", fontWeight: 700,
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── PLANNER DATA & HELPERS ──────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const DAYS  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+const CLEANING_DATA = {
+  0:{area:"Car",          tasks:["Toss any trash","Wipe down dashboard","Check for forgotten cups/wrappers"]},
+  1:{area:"Living Room",  tasks:["Quick tidy — pillows, blankets","Dust surfaces","Vacuum or sweep floor"]},
+  2:{area:"Desk Area",    tasks:["Clear desk surface","File or toss loose papers","Wipe down desk + chair"]},
+  3:{area:"Dining Room",  tasks:["Wipe table + chairs","Clear any clutter","Sweep under table"]},
+  4:{area:"Laundry Room", tasks:["Wipe washer/dryer tops","Clear lint trap","Tidy shelves + supplies"]},
+  5:{area:"Bathrooms",    tasks:["Wipe counters + sink","Scrub toilet","Wipe mirror + floor"]},
+  6:{area:"Bedrooms",     tasks:["Make beds properly","Tidy floors + surfaces","Put away laundry piles"]},
+};
+
+const DEFAULT_AFFIRMATIONS = {
+  0:"I give myself space to rest and bloom.",
+  1:"I am strong, confident, and unstoppable.",
+  2:"I am worthy of all my dreams.",
+  3:"I don't chase, I attract.",
+  4:"I protect my peace without guilt.",
+  5:"I owe myself the same love I freely give to others.",
+  6:"I give myself space to rest and bloom.",
+};
+
+const SCHEDULE_DATA = {
+  0:[
+    {id:"su0a",time:"Morning",label:"Slow start — rest, coffee, quiet",tag:""},
+    {id:"su0b",time:"",       label:"🦷 Brush teeth (morning)",tag:"habit",teeth:"am"},
+    {id:"su1", time:"10:00a", label:"🏠 House reset — surfaces, pick-up",tag:"home"},
+    {id:"su1b",time:"10:00a", label:"☀️ Laundry — start a load",tag:"habit"},
+    {id:"su2", time:"12:00p", label:"🍽 Batch cook — 4–5 dinners for the week",tag:"home"},
+    {id:"su3", time:"2:00p",  label:"🛍 Etsy — review products to make this week",tag:"etsy"},
+    {id:"su3b",time:"2:30p",  label:"📚 Review next week's homeschool plan",tag:"school"},
+    {id:"su4", time:"3:30p",  label:"✨ Family time",tag:""},
+    {id:"su4b",time:"3:30p",  label:"☀️ Laundry — fold + put away while hanging out",tag:"habit"},
+    {id:"su5", time:"6:00p",  label:"Dinner + kids bedtime",tag:""},
+    {id:"su6", time:"7:30p",  label:"🌿 Weekly reset — journal, glance at the week",tag:""},
+    {id:"su7", time:"8:15p",  label:"🌿 Nightly self-care",tag:"self-care"},
+    {id:"su7b",time:"",       label:"🦷 Brush teeth (night)",tag:"habit",teeth:"pm"},
+    {id:"su8", time:"9:00p",  label:"📖 Read — end the week gently",tag:""},
+  ],
+  1:[
+    {id:"m0",  time:"6:30a",  label:"Drive in — podcast, music, or silence",tag:""},
+    {id:"m0b", time:"",       label:"🦷 Brush teeth (morning)",tag:"habit",teeth:"am"},
+    {id:"m0c", time:"6:30a",  label:"☀️ Laundry — start a load before you leave (or hand off)",tag:"habit"},
+    {id:"m1",  time:"7:00a",  label:"💼 Work",tag:"work"},
+    {id:"m3",  time:"4:30p",  label:"Quick fuel + change clothes",tag:""},
+    {id:"m4",  time:"4:45p",  label:"🚗 Drive to gym",tag:""},
+    {id:"m5",  time:"5:00p",  label:"💪 Workout with husband",tag:"gym"},
+    {id:"m6",  time:"6:45p",  label:"Drive home",tag:""},
+    {id:"m7",  time:"7:00p",  label:"Dinner",tag:""},
+    {id:"m8",  time:"7:30p",  label:"Kids bedtime",tag:""},
+    {id:"m8b", time:"8:00p",  label:"☀️ Laundry — fold + put away",tag:"habit"},
+    {id:"m8c", time:"",       label:"🍽 Kitchen clean before bed",tag:"habit"},
+    {id:"m9",  time:"8:00p",  label:"🛍 Etsy — one task, already decided",tag:"etsy"},
+    {id:"m10", time:"9:00p",  label:"🌿 Nightly self-care (~45 min)",tag:"self-care"},
+    {id:"m10b",time:"",       label:"🦷 Brush teeth (night)",tag:"habit",teeth:"pm"},
+    {id:"m11", time:"9:45p",  label:"📖 Read",tag:""},
+  ],
+  2:[
+    {id:"t0",  time:"7:00a",  label:"💼 Work — deep focus before kids need you",tag:"work"},
+    {id:"t0b", time:"",       label:"🦷 Brush teeth (morning)",tag:"habit",teeth:"am"},
+    {id:"t0c", time:"7:00a",  label:"☀️ Laundry — start a load before work",tag:"habit"},
+    {id:"t1",  time:"9:00a",  label:"📚 Homeschool block 1",tag:"school"},
+    {id:"t2",  time:"11:00a", label:"💼 Work — husband heads out",tag:"work"},
+    {id:"t3",  time:"12:00p", label:"Lunch + light school / reading aloud",tag:"school"},
+    {id:"t4",  time:"1:00p",  label:"💼 Work — kids on independent activities",tag:"work"},
+    {id:"t5",  time:"3:15p",  label:"🚗 Drive to gym",tag:""},
+    {id:"t6",  time:"3:30p",  label:"💪 Solo workout — just you",tag:"gym"},
+    {id:"t7",  time:"5:00p",  label:"Drive home",tag:""},
+    {id:"t8",  time:"5:15p",  label:"Dinner + kids time",tag:""},
+    {id:"t8b", time:"5:15p",  label:"☀️ Laundry — fold + put away during dinner",tag:"habit"},
+    {id:"t9",  time:"6:30p",  label:"Kids bedtime",tag:""},
+    {id:"t9b", time:"",       label:"🍽 Kitchen clean before bed",tag:"habit"},
+    {id:"t10", time:"7:30p",  label:"🛍 Etsy — CREATE (best creative block of the week)",tag:"etsy"},
+    {id:"t11", time:"8:30p",  label:"🚿 Full self-care — shower, wash hair (~60 min)",tag:"self-care"},
+    {id:"t11b",time:"",       label:"🦷 Brush teeth (night)",tag:"habit",teeth:"pm"},
+    {id:"t12", time:"9:30p",  label:"📖 Read",tag:""},
+  ],
+  3:[
+    {id:"w0",  time:"7:00a",  label:"💼 Work — deep focus",tag:"work"},
+    {id:"w0b", time:"",       label:"🦷 Brush teeth (morning)",tag:"habit",teeth:"am"},
+    {id:"w0c", time:"7:00a",  label:"☀️ Laundry — start a load before work",tag:"habit"},
+    {id:"w1",  time:"9:00a",  label:"📚 Homeschool block 1",tag:"school"},
+    {id:"w2",  time:"11:00a", label:"💼 Work",tag:"work"},
+    {id:"w3",  time:"12:00p", label:"Lunch + outdoor time / free play",tag:"school"},
+    {id:"w4",  time:"1:00p",  label:"💼 Work — kids independent",tag:"work"},
+    {id:"w5",  time:"3:30p",  label:"🏠 House reset — one rotating task",tag:"home"},
+    {id:"w5b", time:"3:30p",  label:"☀️ Laundry — fold + put away during house reset",tag:"habit"},
+    {id:"w6",  time:"5:00p",  label:"Dinner + kids",tag:""},
+    {id:"w7",  time:"6:30p",  label:"Kids bedtime",tag:""},
+    {id:"w7b", time:"",       label:"🍽 Kitchen clean before bed",tag:"habit"},
+    {id:"w8",  time:"7:30p",  label:"🛍 Etsy admin — listings, SEO, analytics, messages",tag:"etsy"},
+    {id:"w9",  time:"8:30p",  label:"🌿 Nightly self-care (~45 min)",tag:"self-care"},
+    {id:"w9b", time:"",       label:"🦷 Brush teeth (night)",tag:"habit",teeth:"pm"},
+    {id:"w10", time:"9:15p",  label:"📖 Read",tag:""},
+  ],
+  4:[
+    {id:"th0", time:"6:30a",  label:"Drive in",tag:""},
+    {id:"th0b",time:"",       label:"🦷 Brush teeth (morning)",tag:"habit",teeth:"am"},
+    {id:"th0c",time:"6:30a",  label:"☀️ Laundry — start a load before you leave (or hand off)",tag:"habit"},
+    {id:"th1", time:"7:00a",  label:"💼 Work",tag:"work"},
+    {id:"th2", time:"3:30p",  label:"Drive home — decompress",tag:""},
+    {id:"th3", time:"4:30p",  label:"Quick fuel + change (slow cooker night ✓)",tag:""},
+    {id:"th4", time:"4:45p",  label:"🚗 Drive to gym",tag:""},
+    {id:"th5", time:"5:00p",  label:"💪 Workout with husband",tag:"gym"},
+    {id:"th6", time:"6:45p",  label:"Drive home",tag:""},
+    {id:"th7", time:"7:00p",  label:"Dinner — reheat and eat",tag:""},
+    {id:"th8", time:"7:30p",  label:"Kids to bed",tag:""},
+    {id:"th8b",time:"8:00p",  label:"☀️ Laundry — fold + put away",tag:"habit"},
+    {id:"th8c",time:"",       label:"🍽 Kitchen clean before bed",tag:"habit"},
+    {id:"th9", time:"8:00p",  label:"💑 Financial reset — review week, Etsy numbers",tag:""},
+    {id:"th10",time:"8:45p",  label:"🚿 Shower + nightly self-care",tag:"self-care"},
+    {id:"th10b",time:"",      label:"🦷 Brush teeth (night)",tag:"habit",teeth:"pm"},
+    {id:"th11",time:"9:30p",  label:"📖 Read",tag:""},
+  ],
+  5:[
+    {id:"f0",  time:"6:30a",  label:"Drive in",tag:""},
+    {id:"f0b", time:"",       label:"🦷 Brush teeth (morning)",tag:"habit",teeth:"am"},
+    {id:"f0c", time:"6:30a",  label:"☀️ Laundry — start a load before you leave (or hand off)",tag:"habit"},
+    {id:"f1",  time:"7:00a",  label:"💼 Work — almost the weekend",tag:"work"},
+    {id:"f2",  time:"3:30p",  label:"Drive home — exhale, the week is done",tag:""},
+    {id:"f3",  time:"4:30p",  label:"Kids + easy dinner — takeout, pizza, zero effort",tag:""},
+    {id:"f3b", time:"",       label:"🍽 Kitchen clean before bed",tag:"habit"},
+    {id:"f4",  time:"6:00p",  label:"✨ Whatever you both want — no Etsy, no planning",tag:""},
+    {id:"f4b", time:"6:00p",  label:"☀️ Laundry — fold + put away whenever",tag:"habit"},
+    {id:"f5",  time:"",       label:"🌿 Nightly self-care — unhurried, it's Friday",tag:"self-care"},
+    {id:"f5b", time:"",       label:"🦷 Brush teeth (night)",tag:"habit",teeth:"pm"},
+    {id:"f6",  time:"",       label:"📖 Read until you fall asleep",tag:""},
+  ],
+  6:[
+    {id:"sa0", time:"Morning",label:"Slow morning with family — no alarm",tag:""},
+    {id:"sa0b",time:"",       label:"🦷 Brush teeth (morning)",tag:"habit",teeth:"am"},
+    {id:"sa0c",time:"Morning",label:"☀️ Laundry — start a load during slow morning",tag:"habit"},
+    {id:"sa1", time:"11:00a", label:"🛍 Etsy creation — 2–3 hours, batch mode",tag:"etsy"},
+    {id:"sa2", time:"2:00p",  label:"🛒 Grocery run + start Sunday meal prep",tag:"home"},
+    {id:"sa3", time:"4:00p",  label:"🌿 Yours — nap, bath, walk, nothing (non-optional)",tag:"self-care"},
+    {id:"sa3b",time:"4:00p",  label:"☀️ Laundry — fold + put away during your rest time",tag:"habit"},
+    {id:"sa4", time:"6:00p",  label:"Easy dinner + cozy night with kids",tag:""},
+    {id:"sa4b",time:"",       label:"🍽 Kitchen clean before bed",tag:"habit"},
+    {id:"sa5", time:"9:00p",  label:"🌿 Real self-care night — face mask, no rushing",tag:"self-care"},
+    {id:"sa5b",time:"",       label:"🦷 Brush teeth (night)",tag:"habit",teeth:"pm"},
+    {id:"sa6", time:"10:00p", label:"📖 Read",tag:""},
+  ],
+};
+
+const UNSCHEDULED_DEFAULTS = {
+  0:[{id:"usu1",text:"Add anything extra for today…"}],
+  1:[{id:"um1",text:"Reply to Etsy messages"},{id:"um2",text:"Check shop analytics"}],
+  2:[{id:"ut1",text:"Create new Etsy resource"},{id:"ut2",text:"K spelling practice (extra)"}],
+  3:[{id:"uw1",text:"Etsy listing SEO update"},{id:"uw2",text:"3rd grade science activity"}],
+  4:[{id:"uth1",text:"Prep slow cooker"},{id:"uth2",text:"Etsy photo retakes"}],
+  5:[{id:"uf1",text:"Weekly grocery list"},{id:"uf2",text:"Print next week's school materials"}],
+  6:[{id:"usa1",text:"Batch create 3–5 Etsy resources"},{id:"usa2",text:"Grocery order / run"}],
+};
+
+const TAG_COLORS = {
+  work:        { bg:"#e8f0e9", color:"#2d5a3d" },
+  habit:       { bg:"#f0ede6", color:"#8a6f4e" },
+  home:        { bg:"#e8f0e9", color:"#4a7c59" },
+  etsy:        { bg:"#fdf0e8", color:"#c17f3e" },
+  school:      { bg:"#eef0f8", color:"#4a5a8a" },
+  "self-care": { bg:"#f8ecf0", color:"#a0527a" },
+  gym:         { bg:"#d4e8d8", color:"#2d5a3d" },
+};
+
+const PLANNER_KEY = "mostly_functional_v1";
+
+function buildPlannerDefault() {
+  const s = {};
+  for (let d = 0; d < 7; d++) {
+    s[d] = {
+      slots: SCHEDULE_DATA[d].map(sl => ({
+        ...sl,
+        checked: false,
+        skipped: false,
+        note: "",
+        teeth_am: sl.teeth === "am" ? [false, false] : undefined,
+        teeth_pm: sl.teeth === "pm" ? [false, false] : undefined,
+      })),
+      cleaning: CLEANING_DATA[d].tasks.map((t, i) => ({ id: `cl${d}_${i}`, text: t, checked: false })),
+      unscheduled: UNSCHEDULED_DEFAULTS[d].map(u => ({ ...u, time: "", checked: false })),
+      water: [false, false, false, false],
+      affirmation: DEFAULT_AFFIRMATIONS[d],
+    };
+  }
+  return s;
+}
+
+function loadPlannerState() {
+  try {
+    const raw = localStorage.getItem(PLANNER_KEY);
+    if (!raw) return buildPlannerDefault();
+    const parsed = JSON.parse(raw);
+    for (let d = 0; d < 7; d++) {
+      if (!parsed[d]) parsed[d] = buildPlannerDefault()[d];
+      if (!parsed[d].water) parsed[d].water = [false,false,false,false];
+      if (!parsed[d].unscheduled) parsed[d].unscheduled = UNSCHEDULED_DEFAULTS[d].map(u=>({...u,time:"",checked:false}));
+    }
+    // One-time cleanup: remove the Friday 4:00p gym slot
+    if (parsed[5]?.slots) {
+      parsed[5].slots = parsed[5].slots.filter(s => !(s.tag === "gym" && s.time === "4:00p"));
+    }
+    return parsed;
+  } catch { return buildPlannerDefault(); }
+}
+
+function savePlannerState(s) {
+  try { localStorage.setItem(PLANNER_KEY, JSON.stringify(s)); } catch {}
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── PLANNER COMPONENTS ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const PC = {
+  bg:         "#f7f5f0",
+  surface:    "#ffffff",
+  surfaceAlt: "#f0ede6",
+  border:     "#e0dbd0",
+  accent:     "#4a7c59",
+  accentLight:"#d4e8d8",
+  petal:      "#e8f0e9",
+  petalDark:  "#c5d9c8",
+  greenDark:  "#2d5a3d",
+  text:       "#2d2a24",
+  textMid:    "#8a8275",
+  textDim:    "#b8b0a4",
+  orange:     "#c17f3e",
+  orangeLight:"#fdf0e8",
+  blue:       "#4a6a8a",
+  blueLight:  "#e8f0f8",
+  purple:     "#7a5a8a",
+  purpleLight:"#f0e8f8",
+  gold:       "#b89040",
+  goldLight:  "#fdf6e8",
+};
+
+// ── PlannerView ──────────────────────────────────────────────────────────────
+function PlannerView({ onGymNav }) {
+  const TODAY = new Date().getDay();
+  const [activeDay, setActiveDay] = useState(TODAY);
+  const [plannerState, setPlannerState] = useState(() => loadPlannerState());
+  const [newTask, setNewTask] = useState("");
+
+  useEffect(() => { savePlannerState(plannerState); }, [plannerState]);
+
+  function updateDay(d, patch) {
+    setPlannerState(s => ({ ...s, [d]: { ...s[d], ...patch } }));
+  }
+
+  function toggleSlot(dayIdx, slotIdx) {
+    const slots = plannerState[dayIdx].slots.map((s, i) =>
+      i === slotIdx ? { ...s, checked: !s.checked } : s
+    );
+    updateDay(dayIdx, { slots });
+  }
+
+  function skipSlot(dayIdx, slotIdx) {
+    const slots = plannerState[dayIdx].slots.map((s, i) => {
+      if (i !== slotIdx) return s;
+      const skipped = !s.skipped;
+      return { ...s, skipped, checked: skipped ? false : s.checked };
+    });
+    updateDay(dayIdx, { slots });
+  }
+
+  function updateNote(dayIdx, slotIdx, note) {
+    const slots = plannerState[dayIdx].slots.map((s, i) =>
+      i === slotIdx ? { ...s, note } : s
+    );
+    updateDay(dayIdx, { slots });
+  }
+
+  function updateTime(dayIdx, slotIdx, time) {
+    const slots = plannerState[dayIdx].slots.map((s, i) =>
+      i === slotIdx ? { ...s, time } : s
+    );
+    updateDay(dayIdx, { slots });
+  }
+
+  function toggleTeeth(dayIdx, slotIdx, teethKey, biteIdx) {
+    const slots = plannerState[dayIdx].slots.map((s, i) => {
+      if (i !== slotIdx) return s;
+      const arr = [...(s[teethKey] || [false, false])];
+      arr[biteIdx] = !arr[biteIdx];
+      return { ...s, [teethKey]: arr };
+    });
+    updateDay(dayIdx, { slots });
+  }
+
+  function toggleWater(dayIdx, bottleIdx) {
+    const water = plannerState[dayIdx].water.map((w, i) => i === bottleIdx ? !w : w);
+    updateDay(dayIdx, { water });
+  }
+
+  function toggleCleaning(dayIdx, taskIdx) {
+    const cleaning = plannerState[dayIdx].cleaning.map((c, i) =>
+      i === taskIdx ? { ...c, checked: !c.checked } : c
+    );
+    updateDay(dayIdx, { cleaning });
+  }
+
+  function addUnscheduled() {
+    const t = newTask.trim();
+    if (!t) return;
+    const unscheduled = [...plannerState[activeDay].unscheduled, { id: "u" + Date.now(), text: t, time: "", checked: false }];
+    updateDay(activeDay, { unscheduled });
+    setNewTask("");
+  }
+
+  function scheduleItem(dayIdx, itemId, time) {
+    if (!time) return;
+    const item = plannerState[dayIdx].unscheduled.find(u => u.id === itemId);
+    if (!item) return;
+    const newSlot = { id: "inj" + Date.now(), time, label: item.text, tag: "", checked: false, skipped: false, note: "", added: true };
+    const slots = [...plannerState[dayIdx].slots, newSlot].sort((a, b) => compareTimeStr(a.time, b.time));
+    const unscheduled = plannerState[dayIdx].unscheduled.filter(u => u.id !== itemId);
+    updateDay(dayIdx, { slots, unscheduled });
+  }
+
+  function resetDay(dayIdx) {
+    const slots = plannerState[dayIdx].slots
+      .filter(s => !s.added) // remove user-added slots
+      .map(s => ({
+        ...s, checked: false, skipped: false,
+        teeth_am: s.teeth_am ? [false, false] : undefined,
+        teeth_pm: s.teeth_pm ? [false, false] : undefined,
+      }));
+    const cleaning = plannerState[dayIdx].cleaning.map(c => ({ ...c, checked: false }));
+    updateDay(dayIdx, { slots, cleaning, water: [false, false, false, false] });
+  }
+
+  function compareTimeStr(a, b) {
+    const parse = t => {
+      if (!t || t === "" || isNaN(parseInt(t))) return 9999;
+      const ampm = t.slice(-1).toLowerCase();
+      const [h, m] = t.slice(0, -1).split(":").map(Number);
+      let h24 = h;
+      if (ampm === "p" && h !== 12) h24 = h + 12;
+      if (ampm === "a" && h === 12) h24 = 0;
+      return h24 * 60 + (m || 0);
+    };
+    return parse(a) - parse(b);
+  }
+
+  const day = plannerState[activeDay];
+  const checkedCount = day.slots.filter(s => s.checked).length;
+  const totalCount = day.slots.length;
+  const waterCount = day.water.filter(Boolean).length;
+
+  // Dynamic — any day that has a gym-tagged slot shows the 💪 dot
+  const gymDays = Array.from({length: 7}, (_, i) =>
+    plannerState[i].slots.some(s => s.tag === "gym")
+  );
+
+  function addGymSlot(dayIdx, time, label) {
+    const newSlot = {
+      id: "gym" + Date.now(),
+      time: time || "",
+      label: label || "💪 Gym session",
+      tag: "gym",
+      checked: false,
+      skipped: false,
+      note: "",
+      added: true,
+    };
+    const slots = [...plannerState[dayIdx].slots, newSlot].sort((a, b) => compareTimeStr(a.time, b.time));
+    updateDay(dayIdx, { slots });
+  }
+
+  function removeSlot(dayIdx, slotId) {
+    const slots = plannerState[dayIdx].slots.filter(s => s.id !== slotId);
+    updateDay(dayIdx, { slots });
+  }
+
+  const displayDate = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + (activeDay - TODAY));
+    return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  })();
+
+  return (
+    <div style={{ background: PC.bg, minHeight: "100vh" }}>
+
+      {/* Day tabs */}
+      <div style={{ display: "flex", overflowX: "auto", background: PC.surface, borderBottom: `1px solid ${PC.border}`, padding: "0 8px", scrollbarWidth: "none" }}>
+        {DAYS.map((name, i) => {
+          const isToday = i === TODAY;
+          const isActive = i === activeDay;
+          const hasGym = gymDays[i];
+          return (
+            <button key={i} onClick={() => setActiveDay(i)} style={{
+              flexShrink: 0, padding: "10px 14px 9px",
+              fontSize: 11, fontFamily: "monospace", letterSpacing: "0.07em", textTransform: "uppercase",
+              background: "transparent", border: "none", cursor: "pointer",
+              borderBottom: isActive ? `2px solid ${PC.accent}` : "2px solid transparent",
+              color: isActive ? PC.greenDark : isToday ? PC.accent : PC.textMid,
+              fontWeight: isActive ? 700 : 400,
+              position: "relative",
+            }}>
+              {SHORT[i]}
+              {isToday && <span style={{ position: "absolute", top: 7, right: 5, width: 4, height: 4, borderRadius: "50%", background: PC.orange, display: "block" }} />}
+              {hasGym && <span style={{ position: "absolute", bottom: 11, right: 4, fontSize: 7 }}>💪</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Header */}
+      <div style={{ textAlign: "center", padding: "14px 12px 6px" }}>
+        <div style={{ fontSize: 9, color: PC.textMid, letterSpacing: "0.14em", textTransform: "uppercase", fontFamily: "monospace", marginBottom: 3 }}>
+          {DAYS[activeDay]} · {displayDate}
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 700, fontStyle: "italic", color: PC.greenDark, fontFamily: "Georgia, serif" }}>
+          Mostly Functional
+        </div>
+        <div style={{ fontSize: 11, color: PC.textMid, fontStyle: "italic", marginTop: 2 }}>
+          {checkedCount} of {totalCount} items done
+        </div>
+      </div>
+
+      {/* Affirmation */}
+      <div style={{ maxWidth: 680, margin: "10px auto 4px", padding: "0 12px" }}>
+        <div style={{ background: PC.surface, border: `1px solid ${PC.border}`, borderLeft: `3px solid ${PC.orange}`, borderRadius: 10, padding: "10px 14px", display: "flex", gap: 10 }}>
+          <span style={{ fontSize: 16, flexShrink: 0, marginTop: 2 }}>🌸</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 9, color: PC.textMid, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: "monospace", marginBottom: 4 }}>Today's affirmation</div>
+            <textarea
+              rows={1}
+              value={day.affirmation || ""}
+              onChange={e => updateDay(activeDay, { affirmation: e.target.value })}
+              placeholder="Your affirmation for today…"
+              style={{
+                width: "100%", background: "transparent", border: "none", outline: "none", resize: "none",
+                fontFamily: "Georgia, serif", fontStyle: "italic", fontSize: 14, color: PC.text, lineHeight: 1.6,
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Main grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr min(300px, 100%)", gap: 10, maxWidth: 1100, margin: "10px auto 40px", padding: "0 10px" }}>
+
+        {/* Timeline */}
+        <div>
+          <div style={{ fontSize: 9, color: PC.textMid, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: "monospace", marginBottom: 6 }}>Your day</div>
+          {day.slots.map((slot, si) => (
+            <SlotRow
+              key={slot.id}
+              slot={slot}
+              dayIdx={activeDay}
+              slotIdx={si}
+              onToggle={() => toggleSlot(activeDay, si)}
+              onSkip={() => skipSlot(activeDay, si)}
+              onDelete={() => removeSlot(activeDay, slot.id)}
+              onNote={note => updateNote(activeDay, si, note)}
+              onTime={time => updateTime(activeDay, si, time)}
+              onTeeth={(key, bi) => toggleTeeth(activeDay, si, key, bi)}
+              onGymNav={onGymNav}
+            />
+          ))}
+        </div>
+
+        {/* Sidebar */}
+        <div>
+
+          {/* Gym session */}
+          <GymSessionCard
+            activeDay={activeDay}
+            daySlots={day.slots}
+            onAdd={(time, label) => addGymSlot(activeDay, time, label)}
+            onRemove={(slotId) => removeSlot(activeDay, slotId)}
+            onGymNav={onGymNav}
+          />
+
+          {/* Unscheduled */}
+          <SideCard title="Pick a time" dotColor={PC.blue}>
+            {day.unscheduled.filter(u => !u.time).map(item => (
+              <UnscheduledItem key={item.id} item={item} onSchedule={(time) => scheduleItem(activeDay, item.id, time)} />
+            ))}
+            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+              <input
+                value={newTask}
+                onChange={e => setNewTask(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && addUnscheduled()}
+                placeholder="+ add task…"
+                style={{ flex: 1, background: PC.surfaceAlt, border: `1px solid ${PC.border}`, borderRadius: 6, color: PC.text, fontSize: 12, padding: "4px 8px", fontFamily: "Georgia, serif", outline: "none" }}
+              />
+              <button onClick={addUnscheduled} style={{ background: PC.accent, border: "none", borderRadius: 6, color: "#fff", fontSize: 14, padding: "4px 10px", cursor: "pointer", fontWeight: 700 }}>+</button>
+            </div>
+          </SideCard>
+
+          {/* Cleaning */}
+          <SideCard title={`🧹 ${CLEANING_DATA[activeDay].area}`} dotColor={PC.gold}>
+            {day.cleaning.map((task, ti) => (
+              <div key={task.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "5px 0", borderBottom: ti < day.cleaning.length - 1 ? `1px solid ${PC.border}` : "none" }}>
+                <PlannerCheckbox checked={task.checked} onToggle={() => toggleCleaning(activeDay, ti)} />
+                <span style={{ fontSize: 12, flex: 1, color: task.checked ? PC.textDim : PC.text, textDecoration: task.checked ? "line-through" : "none", lineHeight: 1.4 }}>{task.text}</span>
+              </div>
+            ))}
+          </SideCard>
+
+          {/* Water */}
+          <SideCard title="💧 Water" dotColor={PC.blue}>
+            <div style={{ fontSize: 10, color: PC.textMid, fontFamily: "monospace", marginBottom: 10 }}>tap each bottle as you finish it</div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
+              {day.water.map((filled, bi) => (
+                <div key={bi} onClick={() => toggleWater(activeDay, bi)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                  <span style={{ fontSize: 28, opacity: filled ? 1 : 0.22, transition: "opacity .15s", lineHeight: 1 }}>🫙</span>
+                  <span style={{ fontSize: 9, color: PC.textMid, fontFamily: "monospace" }}>{bi + 1}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 10, textAlign: "center", marginTop: 8, fontFamily: "monospace", color: waterCount === 4 ? PC.accent : PC.textMid }}>
+              {waterCount === 4 ? "✓ all 4 done!" : `${waterCount} of 4`}
+            </div>
+          </SideCard>
+
+          {/* Reset */}
+          <div style={{ textAlign: "center", paddingTop: 4 }}>
+            <button
+              onClick={() => { if (window.confirm(`Reset all checks for ${DAYS[activeDay]}? Notes stay.`)) resetDay(activeDay); }}
+              style={{ background: "transparent", border: `1px solid ${PC.border}`, color: PC.textDim, borderRadius: 6, padding: "4px 14px", fontSize: 10, cursor: "pointer", fontFamily: "monospace" }}
+            >
+              reset {SHORT[activeDay]} checks
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── SlotRow ──────────────────────────────────────────────────────────────────
+function SlotRow({ slot, dayIdx, slotIdx, onToggle, onSkip, onDelete, onNote, onTime, onTeeth, onGymNav }) {
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [editingTime, setEditingTime] = useState(false);
+  const [timeVal, setTimeVal] = useState(slot.time || "");
+  const isGym = slot.tag === "gym";
+  const tagStyle = TAG_COLORS[slot.tag] || null;
+
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", padding: "6px 0", borderBottom: `1px solid rgba(0,0,0,0.05)`, gap: 0, opacity: slot.skipped ? 0.35 : 1 }}>
+
+      {/* Time */}
+      <div style={{ width: 70, flexShrink: 0, paddingTop: 3 }}>
+        {editingTime ? (
+          <input
+            autoFocus
+            value={timeVal}
+            onChange={e => setTimeVal(e.target.value)}
+            onBlur={() => { onTime(timeVal.trim()); setEditingTime(false); }}
+            onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") { onTime(timeVal.trim()); setEditingTime(false); } }}
+            style={{ width: 62, background: PC.petal, border: `1px solid ${PC.petalDark}`, borderRadius: 4, color: PC.greenDark, fontSize: 10, fontFamily: "monospace", padding: "2px 4px", outline: "none" }}
+          />
+        ) : (
+          <span
+            onClick={() => !slot.skipped && setEditingTime(true)}
+            style={{ fontSize: 10, fontFamily: "monospace", color: PC.textMid, cursor: slot.skipped ? "default" : "pointer", borderBottom: "1px dashed transparent", display: "inline-block" }}
+            onMouseEnter={e => { if (!slot.skipped) e.target.style.borderBottomColor = PC.border; }}
+            onMouseLeave={e => { e.target.style.borderBottomColor = "transparent"; }}
+          >
+            {slot.time || ""}
+          </span>
+        )}
+      </div>
+
+      {/* Body */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            {/* Label row */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{
+                fontSize: 13, color: slot.checked ? PC.textDim : PC.text, lineHeight: 1.4,
+                textDecoration: slot.checked ? "line-through" : "none",
+              }}>
+                {slot.label}
+              </span>
+              {tagStyle && (
+                <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 10, background: tagStyle.bg, color: tagStyle.color, fontFamily: "monospace", letterSpacing: "0.05em", flexShrink: 0 }}>
+                  {slot.tag}
+                </span>
+              )}
+            </div>
+
+            {/* Gym tap-through */}
+            {isGym && !slot.skipped && (
+              <button onClick={onGymNav} style={{ marginTop: 4, fontSize: 10, background: PC.petal, border: `1px solid ${PC.petalDark}`, borderRadius: 6, padding: "2px 10px", color: PC.greenDark, cursor: "pointer", fontFamily: "monospace", letterSpacing: "0.04em" }}>
+                → open gym tracker
+              </button>
+            )}
+
+            {/* Teeth */}
+            {(slot.teeth_am || slot.teeth_pm) && !slot.skipped && (() => {
+              const arr = slot.teeth_am || slot.teeth_pm;
+              const teethKey = slot.teeth_am ? "teeth_am" : "teeth_pm";
+              const labels = slot.teeth_am ? ["Morning brush", "Morning floss"] : ["Night brush", "Night floss"];
+              return (
+                <div style={{ display: "flex", gap: 10, marginTop: 5 }}>
+                  {labels.map((lbl, bi) => (
+                    <div key={bi} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <PlannerCheckbox size={13} checked={arr[bi]} onToggle={() => onTeeth(teethKey, bi)} />
+                      <span style={{ fontSize: 10, color: PC.textMid }}>{lbl}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Note */}
+            {!slot.skipped && (
+              <>
+                <button
+                  onClick={() => setNoteOpen(o => !o)}
+                  style={{ marginTop: 3, fontSize: 9, background: "transparent", border: `1px solid ${PC.border}`, borderRadius: 3, color: slot.note ? PC.accent : PC.textDim, cursor: "pointer", padding: "1px 5px", fontFamily: "monospace" }}
+                >
+                  {noteOpen ? "▲ note" : (slot.note ? "▼ note •" : "▼ note")}
+                </button>
+                {noteOpen && (
+                  <textarea
+                    autoFocus
+                    value={slot.note || ""}
+                    onChange={e => onNote(e.target.value)}
+                    placeholder="add a note…"
+                    rows={2}
+                    style={{ display: "block", marginTop: 3, width: "100%", background: PC.surfaceAlt, border: `1px solid ${PC.border}`, borderRadius: 5, color: PC.text, fontSize: 11, padding: "4px 6px", resize: "vertical", outline: "none", fontFamily: "Georgia, serif" }}
+                  />
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Right: checkbox + skip/delete */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, flexShrink: 0, paddingTop: 2 }}>
+            <PlannerCheckbox checked={slot.checked} onToggle={onToggle} disabled={slot.skipped} />
+            {slot.added ? (
+              <button
+                onClick={onDelete}
+                title="Remove this item"
+                style={{ background: "transparent", border: "none", fontSize: 12, cursor: "pointer", padding: 0, color: PC.textDim, lineHeight: 1 }}
+              >
+                ✕
+              </button>
+            ) : (
+              <button
+                onClick={onSkip}
+                title={slot.skipped ? "Restore" : "Skip for today"}
+                style={{ background: "transparent", border: "none", fontSize: 12, cursor: "pointer", padding: 0, color: slot.skipped ? PC.orange : PC.textDim, lineHeight: 1 }}
+              >
+                {slot.skipped ? "↩" : "–"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── PlannerCheckbox ──────────────────────────────────────────────────────────
+function PlannerCheckbox({ checked, onToggle, disabled, size = 16 }) {
+  return (
+    <div
+      onClick={disabled ? undefined : onToggle}
+      style={{
+        width: size, height: size, borderRadius: 3, flexShrink: 0,
+        border: `1.5px solid ${checked ? PC.accent : PC.border}`,
+        background: checked ? PC.accent : "transparent",
+        cursor: disabled ? "default" : "pointer",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        opacity: disabled ? 0.2 : 1, transition: "all .15s",
+      }}
+    >
+      {checked && <span style={{ fontSize: size * 0.6, color: "#fff", fontWeight: 900, lineHeight: 1 }}>✓</span>}
+    </div>
+  );
+}
+
+// ── SideCard ─────────────────────────────────────────────────────────────────
+function SideCard({ title, dotColor, children }) {
+  return (
+    <div style={{ background: PC.surface, border: `1px solid ${PC.border}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 9, display: "flex", alignItems: "center", gap: 6, color: PC.text }}>
+        <div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// ── GymSessionCard ───────────────────────────────────────────────────────────
+function GymSessionCard({ activeDay, daySlots, onAdd, onRemove, onGymNav }) {
+  const [time, setTime] = useState("");
+  const [label, setLabel] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  const gymSlots = daySlots.filter(s => s.tag === "gym");
+
+  const fmt = t => {
+    if (!t) return "";
+    const [h, m] = t.split(":").map(Number);
+    const ampm = h >= 12 ? "p" : "a";
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return h12 + ":" + (m < 10 ? "0" + m : m) + ampm;
+  };
+
+  function handleAdd() {
+    onAdd(fmt(time), label.trim() || "💪 Gym session");
+    setTime(""); setLabel(""); setAdding(false);
+  }
+
+  return (
+    <SideCard title="💪 Gym" dotColor={PC.accent}>
+      {gymSlots.length === 0 ? (
+        <div style={{ fontSize: 11, color: PC.textMid, fontStyle: "italic", marginBottom: 8 }}>
+          No gym session scheduled today
+        </div>
+      ) : (
+        gymSlots.map(slot => (
+          <div key={slot.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${PC.border}`, gap: 6 }}>
+            <div>
+              <div style={{ fontSize: 12, color: PC.text, fontWeight: 600 }}>{slot.label}</div>
+              {slot.time && <div style={{ fontSize: 10, color: PC.textMid, fontFamily: "monospace" }}>{slot.time}</div>}
+            </div>
+            <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+              <button onClick={onGymNav} style={{ fontSize: 10, background: PC.petal, border: `1px solid ${PC.petalDark}`, borderRadius: 5, padding: "2px 8px", color: PC.greenDark, cursor: "pointer", fontFamily: "monospace" }}>
+                → open
+              </button>
+              <button onClick={() => onRemove(slot.id)} style={{ fontSize: 10, background: "transparent", border: `1px solid ${PC.border}`, borderRadius: 5, padding: "2px 6px", color: PC.textMid, cursor: "pointer", fontFamily: "monospace" }}>
+                ✕
+              </button>
+            </div>
+          </div>
+        ))
+      )}
+
+      {adding ? (
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+          <input
+            placeholder="Label (e.g. 💪 Solo workout)"
+            value={label}
+            onChange={e => setLabel(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleAdd()}
+            style={{ background: PC.surfaceAlt, border: `1px solid ${PC.border}`, borderRadius: 6, color: PC.text, fontSize: 12, padding: "4px 8px", fontFamily: "Georgia, serif", outline: "none" }}
+          />
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              type="time"
+              value={time}
+              onChange={e => setTime(e.target.value)}
+              style={{ flex: 1, background: PC.surfaceAlt, border: `1px solid ${PC.border}`, borderRadius: 6, color: PC.text, fontSize: 12, padding: "4px 8px", fontFamily: "monospace", outline: "none" }}
+            />
+            <button onClick={handleAdd} style={{ background: PC.accent, border: "none", borderRadius: 6, color: "#fff", fontSize: 12, padding: "4px 12px", cursor: "pointer", fontWeight: 700 }}>
+              Add
+            </button>
+            <button onClick={() => setAdding(false)} style={{ background: "transparent", border: `1px solid ${PC.border}`, borderRadius: 6, color: PC.textMid, fontSize: 12, padding: "4px 8px", cursor: "pointer" }}>
+              ✕
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setAdding(true)}
+          style={{ marginTop: gymSlots.length > 0 ? 8 : 0, fontSize: 11, background: "transparent", border: `1px dashed ${PC.petalDark}`, borderRadius: 6, color: PC.accent, cursor: "pointer", padding: "4px 10px", fontFamily: "monospace", width: "100%" }}
+        >
+          + add gym session
+        </button>
+      )}
+    </SideCard>
+  );
+}
+
+// ── UnscheduledItem ──────────────────────────────────────────────────────────
+function UnscheduledItem({ item, onSchedule }) {
+  const [timeVal, setTimeVal] = useState("");
+  const fmt = t => {
+    const [h, m] = t.split(":").map(Number);
+    const ampm = h >= 12 ? "p" : "a";
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return h12 + ":" + (m < 10 ? "0" + m : m) + ampm;
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${PC.border}`, gap: 6 }}>
+      <span style={{ fontSize: 12, flex: 1, color: PC.text }}>{item.text}</span>
+      <input type="time" value={timeVal} onChange={e => setTimeVal(e.target.value)}
+        style={{ background: PC.surfaceAlt, border: `1px solid ${PC.border}`, borderRadius: 5, color: PC.text, fontSize: 10, padding: "2px 4px", fontFamily: "monospace", outline: "none", width: 72 }} />
+      <button onClick={() => timeVal && onSchedule(fmt(timeVal))}
+        style={{ background: PC.orange, border: "none", borderRadius: 5, color: "#fff", fontSize: 10, padding: "2px 8px", cursor: "pointer", fontFamily: "monospace", whiteSpace: "nowrap" }}>
+        → add
+      </button>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── ROOT APP ────────────────────────────────────────════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+// Change this to whatever password you want
+const APP_PASSWORD = "sunflower";
+const AUTH_KEY = "mf_auth_v1";
+
+function isAuthenticated() {
+  try { return localStorage.getItem(AUTH_KEY) === "true"; } catch { return false; }
+}
+
+function LoginScreen({ onLogin }) {
+  const [input, setInput] = useState("");
+  const [error, setError] = useState(false);
+  const [shake, setShake] = useState(false);
+
+  function attempt() {
+    if (input === APP_PASSWORD) {
+      try { localStorage.setItem(AUTH_KEY, "true"); } catch {}
+      onLogin();
+    } else {
+      setError(true);
+      setShake(true);
+      setInput("");
+      setTimeout(() => setShake(false), 500);
+    }
+  }
+
+  return (
+    <div style={{
+      minHeight: "100vh", background: C.bg,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontFamily: "Georgia, serif",
+    }}>
+      <div style={{
+        background: C.surface, border: `1.5px solid ${C.border}`,
+        borderRadius: 20, padding: "40px 36px", maxWidth: 340, width: "90%",
+        textAlign: "center", boxShadow: "0 4px 24px rgba(0,0,0,0.07)",
+        animation: shake ? "shake .4s ease" : "none",
+      }}>
+        <div style={{ fontSize: 36, marginBottom: 12 }}>🌿</div>
+        <div style={{ fontSize: 22, fontWeight: 700, fontStyle: "italic", color: C.greenDark, marginBottom: 6 }}>
+          Mostly Functional
+        </div>
+        <div style={{ fontSize: 12, color: C.textMid, fontStyle: "italic", marginBottom: 28 }}>
+          private — enter your password to continue
+        </div>
+        <input
+          type="password"
+          value={input}
+          onChange={e => { setInput(e.target.value); setError(false); }}
+          onKeyDown={e => e.key === "Enter" && attempt()}
+          placeholder="password"
+          autoFocus
+          style={{
+            width: "100%", padding: "10px 14px", fontSize: 14,
+            background: error ? "#fdecea" : C.surfaceAlt,
+            border: `1.5px solid ${error ? "#e88" : C.border}`,
+            borderRadius: 10, outline: "none", textAlign: "center",
+            fontFamily: "Georgia, serif", color: C.text, marginBottom: 10,
+            transition: "border-color .2s, background .2s",
+          }}
+        />
+        {error && (
+          <div style={{ fontSize: 11, color: "#c0392b", marginBottom: 10, fontStyle: "italic" }}>
+            that's not right — try again
+          </div>
+        )}
+        <button onClick={attempt} style={{
+          width: "100%", padding: "10px 0", background: C.accent, border: "none",
+          borderRadius: 10, color: "#fff", fontSize: 13, fontFamily: "Georgia, serif",
+          fontStyle: "italic", fontWeight: 700, cursor: "pointer",
+          boxShadow: "0 2px 8px rgba(74,124,89,0.3)",
+        }}>
+          enter
+        </button>
+        <div style={{ fontSize: 10, color: C.textMid, marginTop: 16, fontStyle: "italic" }}>
+          you won't need to do this again on this device
+        </div>
+      </div>
+      <style>{`
+        @keyframes shake {
+          0%,100% { transform: translateX(0); }
+          20%      { transform: translateX(-8px); }
+          40%      { transform: translateX(8px); }
+          60%      { transform: translateX(-6px); }
+          80%      { transform: translateX(6px); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function App() {
+  const [appTab, setAppTab] = useState("planner"); // "planner" | "gym"
+  const [authed, setAuthed] = useState(() => isAuthenticated());
+
+  if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />;
+
+  return (
+    <div style={{ fontFamily: "Georgia, 'Times New Roman', serif", background: C.bg, minHeight: "100vh" }}>
+
+      {/* Top app switcher */}
+      <div style={{ display: "flex", background: "#fff", borderBottom: `2px solid ${C.border}`, padding: "0 12px", position: "sticky", top: 0, zIndex: 100 }}>
+        {[
+          { key: "planner", label: "🗓 Daily Planner" },
+          { key: "gym",     label: "🌿 Gym Tracker" },
+        ].map(tab => (
+          <button key={tab.key} onClick={() => setAppTab(tab.key)} style={{
+            padding: "10px 16px", background: "transparent", border: "none",
+            borderBottom: appTab === tab.key ? `2px solid ${C.accent}` : "2px solid transparent",
+            color: appTab === tab.key ? C.greenDark : C.textMid,
+            fontFamily: "Georgia, serif", fontStyle: "italic", fontSize: 13,
+            fontWeight: appTab === tab.key ? 700 : 400,
+            cursor: "pointer", marginBottom: -2, transition: "all .15s",
+          }}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div style={{ display: appTab === "planner" ? "block" : "none" }}>
+        <PlannerView onGymNav={() => setAppTab("gym")} />
+      </div>
+      <div style={{ display: appTab === "gym" ? "block" : "none" }}>
+        <GymTracker onGymNav={() => setAppTab("gym")} />
+      </div>
+
+    </div>
+  );
+}
+
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+
+</script>
+</body>
+</html>
